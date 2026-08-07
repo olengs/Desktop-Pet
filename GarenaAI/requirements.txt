@@ -1,0 +1,5 @@
+python-dotenv
+python-multipart
+openai
+fish-audio-sdk
+fastapi
