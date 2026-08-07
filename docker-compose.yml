@@ -1,0 +1,6 @@
+services:
+  garena-portal:
+    build: ./GarenaPortal
+    ports:
+      - '8080:80'
+    restart: unless-stopped
