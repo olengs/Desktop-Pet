@@ -1,0 +1,37 @@
+# Prerequisites
+*.d
+
+# Build directories and generated outputs
+compile_commands.json
+*.qmlc
+*.jsc
+build/
+bin/
+lib/
+
+# Native build products
+*.d
+*.slo
+*.lo
+*.o
+*.obj
+*.gch
+*.pch
+*.so
+*.dylib
+*.dll
+*.mod
+*.smod
+*.lai
+*.la
+*.a
+*.lib
+*.exe
+*.out
+*.app
+
+# Self Install binaries
+grpc/
+
+# Self usage docs
+docs/

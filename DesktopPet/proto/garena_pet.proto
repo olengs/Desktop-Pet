@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package garena.pet.v1;
+
+message TraitScores {
+  int32 teamwork = 1;
+  int32 aggression = 2;
+  int32 loyalty = 3;
+  int32 leadership = 4;
+  int32 risk_taking = 5;
+}
+
+message PlayerContext {
+  string player_id = 1;
+  repeated string memory_context = 2;
+  TraitScores local_traits = 3;
+}
+
+message TextRequest {
+  string request_id = 1;
+  PlayerContext context = 2;
+  string message = 3;
+}
+
+message VoiceRequest {
+  string request_id = 1;
+  PlayerContext context = 2;
+  bytes wav_audio = 3;
+  int32 duration_ms = 4;
+  string mode = 5;
+  string mime_type = 6;
+}
+
+message GameEventRequest {
+  string request_id = 1;
+  PlayerContext context = 2;
+  string game = 3;
+  string event_type = 4;
+  string summary = 5;
+  TraitScores impact = 6;
+}
+
+message PullMessagesRequest {
+  string player_id = 1;
+  int32 max_messages = 2;
+  string after_message_id = 3;
+}
+
+message SubscribeRequest {
+  string player_id = 1;
+  repeated string accepted_mime_types = 2;
+}
+
+message TextPayload {
+  string text = 1;
+}
+
+message AudioPayload {
+  bytes audio = 1;
+  string mime_type = 2;
+  string transcript = 3;
+  string text = 4;
+}
+
+message GameEventPayload {
+  string game = 1;
+  string event_type = 2;
+  string summary = 3;
+}
+
+message PetServerMessage {
+  string message_id = 1;
+  string mood = 2;
+  int64 created_at_unix_ms = 3;
+
+  oneof payload {
+    TextPayload text = 10;
+    AudioPayload audio = 11;
+    GameEventPayload game_event = 12;
+  }
+}
+
+message PetResponse {
+  string request_id = 1;
+  string reply = 2;
+  string mood = 3;
+  string transcript = 4;
+  AudioPayload audio = 5;
+  repeated PetServerMessage extra_messages = 6;
+}
+
+message GameEventReply {
+  bool accepted = 1;
+  string summary = 2;
+  string mood = 3;
+  repeated PetServerMessage extra_messages = 4;
+}
+
+message MessageBatch {
+  repeated PetServerMessage messages = 1;
+}
+
+service GarenaPetService {
+  rpc SendText(TextRequest) returns (PetResponse);
+  rpc SendVoice(VoiceRequest) returns (PetResponse);
+  rpc SendGameEvent(GameEventRequest) returns (GameEventReply);
+  rpc PullMessages(PullMessagesRequest) returns (MessageBatch);
+  rpc SubscribeMessages(SubscribeRequest) returns (stream PetServerMessage);
+}
