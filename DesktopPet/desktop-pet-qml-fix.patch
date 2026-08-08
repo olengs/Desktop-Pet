@@ -1,0 +1,65 @@
+diff --git qml/Main.qml qml/Main.qml
+index 2c07bf7..9ed5f26 100644
+--- qml/Main.qml
++++ qml/Main.qml
+@@ -10,7 +10,7 @@ Window {
+     property int petWindowHeight: 324
+     property int petWidth: 170
+     property int petHeight: 194
+-    property string compactNormalPose: "sit"
++    property string compactNormalPose: "idle"
+     property string compactNormalMood: "idle"
+     property string compactSleepPose: "sleep"
+     property string compactSleepMood: "idle"
+@@ -221,8 +221,9 @@ Window {
+         width: root.petWidth
+         height: root.petHeight
+         mood: root.menuOpen ? root.petMood : compactBehavior.mood
+-        pose: root.menuOpen ? root.petMood : compactBehavior.pose
++        pose: compactBehavior.pose
+         compact: true
++        idleBounceEnabled: false
+         spriteSheetSource: root.petSpriteSheet
+         compactIconSource: root.petCompactIcon
+         spriteFrameWidth: root.petSpriteFrameWidth
+diff --git qml/components/PetSprite.qml qml/components/PetSprite.qml
+index 1658709..5531c32 100644
+--- qml/components/PetSprite.qml
++++ qml/components/PetSprite.qml
+@@ -8,6 +8,7 @@ Item {
+     property string mood: "idle"
+     property string pose: mood
+     property bool compact: false
++    property bool idleBounceEnabled: true
+     property url spriteSheetSource: ""
+     property url compactIconSource: ""
+     property int spriteFrameWidth: 0
+@@ -94,9 +95,18 @@ Item {
+         height: parent.height
+         y: 0
+         transformOrigin: Item.Center
++        readonly property bool shouldIdleBounce: root.idleBounceEnabled
++            && root.mood !== "annoyed"
++            && !root.sleeping
++
++        onShouldIdleBounceChanged: {
++            if (!shouldIdleBounce) {
++                y = 0
++            }
++        }
+ 
+         SequentialAnimation on y {
+-            running: root.mood !== "annoyed" && !root.sleeping
++            running: petCore.shouldIdleBounce
+             loops: Animation.Infinite
+             NumberAnimation { from: root.sitting ? 4 : 2; to: root.sitting ? -2 : -8; duration: root.mood === "happy" ? 520 : 1300; easing.type: Easing.InOutQuad }
+             NumberAnimation { from: root.sitting ? -2 : -8; to: root.sitting ? 4 : 2; duration: root.mood === "happy" ? 520 : 1300; easing.type: Easing.InOutQuad }
+@@ -252,7 +262,7 @@ Item {
+             anchors.left: body.left
+             anchors.leftMargin: root.sleeping ? 54 : 46
+             anchors.top: body.top
+-            anchors.topMargin: root.sleeping ? 46 : 58
++            anchors.topMargin: root.sleeping ? 46 : root.sitting ? 34 : 58
+         }
+ 
+         Rectangle {

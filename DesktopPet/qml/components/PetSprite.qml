@@ -8,6 +8,7 @@ Item {
     property string mood: "idle"
     property string pose: mood
     property bool compact: false
+    property bool idleBounceEnabled: true
     property url spriteSheetSource: ""
     property url compactIconSource: ""
     property int spriteFrameWidth: 0
@@ -94,9 +95,18 @@ Item {
         height: parent.height
         y: 0
         transformOrigin: Item.Center
+        readonly property bool shouldIdleBounce: root.idleBounceEnabled
+            && root.mood !== "annoyed"
+            && !root.sleeping
+
+        onShouldIdleBounceChanged: {
+            if (!shouldIdleBounce) {
+                y = 0
+            }
+        }
 
         SequentialAnimation on y {
-            running: root.mood !== "annoyed" && !root.sleeping
+            running: petCore.shouldIdleBounce
             loops: Animation.Infinite
             NumberAnimation { from: root.sitting ? 4 : 2; to: root.sitting ? -2 : -8; duration: root.mood === "happy" ? 520 : 1300; easing.type: Easing.InOutQuad }
             NumberAnimation { from: root.sitting ? -2 : -8; to: root.sitting ? 4 : 2; duration: root.mood === "happy" ? 520 : 1300; easing.type: Easing.InOutQuad }
@@ -252,7 +262,7 @@ Item {
             anchors.left: body.left
             anchors.leftMargin: root.sleeping ? 54 : 46
             anchors.top: body.top
-            anchors.topMargin: root.sleeping ? 46 : 58
+            anchors.topMargin: root.sleeping ? 46 : root.sitting ? 34 : 58
         }
 
         Rectangle {
