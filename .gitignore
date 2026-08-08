@@ -6,3 +6,4 @@
 .vs/
 *.user
 CMakeUserPresets.json
+.DS_Store

@@ -10,7 +10,7 @@ Window {
     property int petWindowHeight: 324
     property int petWidth: 170
     property int petHeight: 194
-    property string compactNormalPose: "sit"
+    property string compactNormalPose: "idle"
     property string compactNormalMood: "idle"
     property string compactSleepPose: "sleep"
     property string compactSleepMood: "idle"
@@ -221,8 +221,9 @@ Window {
         width: root.petWidth
         height: root.petHeight
         mood: root.menuOpen ? root.petMood : compactBehavior.mood
-        pose: root.menuOpen ? root.petMood : compactBehavior.pose
+        pose: compactBehavior.pose
         compact: true
+        idleBounceEnabled: false
         spriteSheetSource: root.petSpriteSheet
         compactIconSource: root.petCompactIcon
         spriteFrameWidth: root.petSpriteFrameWidth
