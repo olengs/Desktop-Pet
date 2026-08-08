@@ -1,0 +1,13 @@
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: dockerfile
+    volumes:
+      - ..:/workspace
+    env_file:
+      - ../GarenaBackend/.env
+    working_dir: /workspace
+    command: sleep infinity
+    init: true
+    tty: true

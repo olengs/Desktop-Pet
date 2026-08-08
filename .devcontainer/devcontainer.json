@@ -1,0 +1,15 @@
+{
+  "name": "garena development",
+  "dockerComposeFile": "devcontainer.yaml",
+  "service": "workspace",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "postCreateCommand": "conda run --name garena pip install --no-cache-dir -r GarenaBackend/requirements.txt && conda run --name garena npm ci --prefix GarenaPortal",
+  "postStartCommand": {
+    "backend": "nohup conda run --no-capture-output --name garena uvicorn main:app --app-dir GarenaBackend --host 0.0.0.0 --port 8000 --reload --reload-dir GarenaBackend >/tmp/garena-backend.log 2>&1 &",
+    "portal": "nohup conda run --no-capture-output --name garena npm --prefix GarenaPortal run dev -- --host 0.0.0.0 >/tmp/garena-portal.log 2>&1 &"
+  },
+  "forwardPorts": [8000, 5173]
+}
