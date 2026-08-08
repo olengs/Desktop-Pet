@@ -1,19 +1,18 @@
 from fastapi import FastAPI, HTTPException
 
-from db import get_connection
+from db import getconnection
 
 app = FastAPI()
 
-
 @app.get("/")
-def read_root():
+def readroot():
     return {"status": "ok"}
 
 
 @app.get("/health/db")
-def health_db():
+def healthdb():
     try:
-        conn = get_connection()
+        conn = getconnection()
         try:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")

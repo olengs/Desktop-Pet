@@ -1,13 +1,13 @@
 import os
+from pathlib import Path
 
 import psycopg2
-from psycopg2.extensions import connection as PGConnection
+from psycopg2.extensions import connection as pgconnection
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
-
-def get_connection() -> PGConnection:
+def getconnection() -> pgconnection:
     return psycopg2.connect(
         host=os.environ["DB_HOST"],
         port=os.environ.get("DB_PORT", "5432"),
