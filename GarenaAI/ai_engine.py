@@ -25,7 +25,7 @@ load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 #TEMPORARY
-def mock_player_context(user_id):
+def mock_player_context(user_id: str):
     return """
     Traits: High aggression (85/100), Low teamwork (30/100)
     Memories:
@@ -34,7 +34,7 @@ def mock_player_context(user_id):
     """
 #TEMPORARY
 
-async def generate_response(user_id=0, user_message="How am I as a player?"):
+async def generate_response(user_id: str, user_message: str):
     memory_context = mock_player_context(user_id) #TO BE REPLACED (brod)
     formatted_prompt = PET_SYSTEM_PROMPT.format(memory_context=memory_context)
 

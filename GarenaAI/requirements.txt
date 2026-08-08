@@ -3,3 +3,4 @@ python-multipart
 openai
 fish-audio-sdk
 fastapi
+uvicorn[standard]

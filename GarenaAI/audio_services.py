@@ -7,15 +7,20 @@ load_dotenv()
 FISH_CLIENT = os.getenv("FISH_AUDIO_API_KEY")
 session = Session(FISH_CLIENT) if FISH_CLIENT else None 
 
-#async def speech_to_text():
-#    transcription = await AsyncOpenAI.audio.transcription.create(
-#        model = "whisper-1",
-#        file = ("user_input.wav", bytes, "audio/wav")
-#    )
-#    return transcription.text.strip()
+async def speech_to_text(client: AsyncOpenAI, audio_bytes: bytes, filename: str = 'input.wav'):
+    """converts user audio into text"""
+    if not audio_bytes:
+        return ""
+    
+    transcription = await client.audio.transcriptions.create(
+        model = "gpt-transcribe",
+        file = (filename, audio_bytes, "audio/wav")
+    )
 
-def text_to_speech(text):
+    return (transcription.text or "").strip()
 
+def text_to_speech(text: str):
+    """converts text into audio"""
     request = TTSRequest(
         text = text,
         model = "s2.1-pro",
