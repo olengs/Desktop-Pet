@@ -15,9 +15,9 @@ Window {
     property color line: "#d9e2ef"
 
     width: 430
-    height: 550
+    height: 640
     minimumWidth: 390
-    minimumHeight: 450
+    minimumHeight: 580
     visible: false
     color: "#f5f7fb"
     title: "Mimo Settings"
@@ -38,6 +38,36 @@ Window {
         if (root.backend) {
             backendTargetInput.text = root.backend.backendTarget
             playerIdInput.text = root.backend.playerId
+        }
+    }
+
+    function normalizedPlayerId(value) {
+        const trimmed = value.trim()
+        return trimmed.length === 0 ? "demo-player" : trimmed
+    }
+
+    function loginPlayer() {
+        if (!root.backend) {
+            return
+        }
+
+        root.backend.playerId = normalizedPlayerId(playerIdInput.text)
+        playerIdInput.text = root.backend.playerId
+    }
+
+    Connections {
+        target: root.backend
+
+        function onPlayerIdChanged() {
+            if (root.visible) {
+                playerIdInput.text = root.backend.playerId
+            }
+        }
+
+        function onBackendTargetChanged() {
+            if (root.visible) {
+                backendTargetInput.text = root.backend.backendTarget
+            }
         }
     }
 
@@ -100,17 +130,76 @@ Window {
                 }
             }
 
-            GridLayout {
+            Text {
+                text: "Player Login"
+                color: root.ink
+                font.pixelSize: 16
+                font.bold: true
                 Layout.fillWidth: true
-                columns: 2
-                columnSpacing: 10
-                rowSpacing: 10
+            }
 
-                Text {
-                    text: "Backend"
-                    color: "#667085"
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                TextField {
+                    id: playerIdInput
+                    Layout.fillWidth: true
                     font.pixelSize: 14
+                    placeholderText: "player-id"
+                    selectByMouse: true
+                    onAccepted: loginButton.clicked()
                 }
+
+                Button {
+                    id: loginButton
+                    text: root.backend && root.backend.playerId === root.normalizedPlayerId(playerIdInput.text) ? "Signed In" : "Login"
+                    enabled: root.backend
+                        && playerIdInput.text.trim().length > 0
+                        && root.backend.playerId !== root.normalizedPlayerId(playerIdInput.text)
+                    Layout.preferredWidth: 96
+                    font.pixelSize: 14
+                    onClicked: root.loginPlayer()
+                }
+
+                Button {
+                    text: "Demo"
+                    Layout.preferredWidth: 82
+                    font.pixelSize: 14
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Use demo-player"
+                    onClicked: {
+                        playerIdInput.text = "demo-player"
+                        root.loginPlayer()
+                    }
+                }
+            }
+
+            Text {
+                text: root.backend ? "Signed in as " + root.backend.playerId : "Not signed in"
+                color: "#667085"
+                font.pixelSize: 13
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: root.line
+            }
+
+            Text {
+                text: "Connection"
+                color: root.ink
+                font.pixelSize: 16
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
 
                 TextField {
                     id: backendTargetInput
@@ -118,38 +207,25 @@ Window {
                     font.pixelSize: 14
                     placeholderText: "127.0.0.1:50051"
                     selectByMouse: true
+                    onAccepted: applyBackendButton.clicked()
                 }
 
-                Text {
-                    text: "Player"
-                    color: "#667085"
+                Button {
+                    id: applyBackendButton
+                    text: "Apply"
+                    Layout.preferredWidth: 90
                     font.pixelSize: 14
-                }
-
-                TextField {
-                    id: playerIdInput
-                    Layout.fillWidth: true
-                    font.pixelSize: 14
-                    placeholderText: "demo-player"
-                    selectByMouse: true
+                    onClicked: {
+                        if (root.backend) {
+                            root.backend.backendTarget = backendTargetInput.text
+                        }
+                    }
                 }
             }
 
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
-
-                Button {
-                    text: "Apply"
-                    Layout.fillWidth: true
-                    onClicked: {
-                        if (!root.backend) {
-                            return
-                        }
-                        root.backend.backendTarget = backendTargetInput.text
-                        root.backend.playerId = playerIdInput.text
-                    }
-                }
 
                 Button {
                     text: "Pull"

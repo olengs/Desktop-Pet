@@ -50,7 +50,7 @@ Window {
     }
 
     Component.onCompleted: {
-        addMessage("pet", "I am Mimo. I can chat and listen when you want to talk.")
+        resetChatForPlayer()
         root.backend.connectMessageStream()
     }
 
@@ -61,6 +61,14 @@ Window {
     function addMessage(sender, text) {
         chatModel.append({ sender: sender, text: text })
         chatWindow.scrollToEnd()
+    }
+
+    function resetChatForPlayer() {
+        chatModel.clear()
+        if (root.backend) {
+            addMessage("system", "Signed in as " + root.backend.playerId + ".")
+        }
+        addMessage("pet", "I am Mimo. I can chat and listen when you want to talk.")
     }
 
     function pulseMood(mood) {
@@ -158,6 +166,10 @@ Window {
         function onChatError(message) {
             root.addMessage("system", message)
             root.pulseMood("annoyed")
+        }
+
+        function onPlayerIdChanged() {
+            root.resetChatForPlayer()
         }
     }
 
