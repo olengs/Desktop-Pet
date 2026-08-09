@@ -10,3 +10,4 @@ CMakeUserPresets.json
 
 # Desktop pet debug captures
 test/*.wav
+docs/
