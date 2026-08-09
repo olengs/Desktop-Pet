@@ -7,3 +7,7 @@
 *.user
 CMakeUserPresets.json
 .DS_Store
+
+# Desktop pet debug captures
+test/*.wav
+docs/

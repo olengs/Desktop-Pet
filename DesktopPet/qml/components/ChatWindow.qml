@@ -117,12 +117,17 @@ Window {
                     required property string text
 
                     width: messageList.width
-                    height: messageBox.height
+                    height: messageBox.implicitHeight
 
                     Rectangle {
                         id: messageBox
-                        width: Math.min(messageText.implicitWidth + 34, parent.width * 0.86)
-                        height: messageText.paintedHeight + 22
+                        readonly property real maxBubbleWidth: parent.width * 0.86
+                        readonly property real horizontalPadding: 22
+                        readonly property real verticalPadding: 22
+
+                        width: Math.min(messageText.implicitWidth + horizontalPadding, maxBubbleWidth)
+                        implicitHeight: messageText.implicitHeight + verticalPadding
+                        height: implicitHeight
                         radius: 16
                         color: messageDelegate.sender === "user" ? "#1f6feb" : messageDelegate.sender === "memory" ? "#eef6ef" : "#fff3c7"
                         border.color: messageDelegate.sender === "memory" ? "#cfe3d2" : "transparent"
@@ -131,8 +136,8 @@ Window {
 
                         Text {
                             id: messageText
-                            anchors.fill: parent
-                            anchors.margins: 11
+                            width: messageBox.width - messageBox.horizontalPadding
+                            anchors.centerIn: parent
                             text: messageDelegate.text
                             color: messageDelegate.sender === "user" ? "white" : root.ink
                             font.pixelSize: 17

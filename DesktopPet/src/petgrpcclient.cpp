@@ -31,7 +31,7 @@ using garena::pet::v1::TextRequest;
 using garena::pet::v1::TraitScores;
 using garena::pet::v1::VoiceRequest;
 
-constexpr int UnaryDeadlineSeconds = 10;
+constexpr int UnaryDeadlineSeconds = 25;
 
 std::string toStdString(const QString &value)
 {

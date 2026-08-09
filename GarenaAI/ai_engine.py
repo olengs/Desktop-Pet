@@ -1,6 +1,14 @@
+from __future__ import annotations
+
 import os
+
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
+
+try:
+    from config import ENV_PATH, config_int, config_value
+except ImportError:
+    from GarenaAI.config import ENV_PATH, config_int, config_value
 
 PET_SYSTEM_PROMPT = """
 You are a friendly, persistent, and observant AI desktop pet companion for a gamer.
@@ -17,11 +25,12 @@ Your job is to help the player understand their gameplay behaviour.
 - Be friendly, slightly playful, observant and direct like a real gaming buddy, providing practical observation when appropriate.
 - Only compare behaviour across games when memories from multiple games support it, and do not treat one event as a permanent behaviour pattern.
 - Address the user's question directly and keep responses clear and concise, in under 3 sentences max so it fits nicely inside a desktop chat bubble.
+- Finish with a complete sentence. Prefer a shorter complete answer over a longer answer that trails off.
 - Return only the reply to the user, with no extra labels, preamble, or explanation.
 - Before finalizing, quickly check that every claim is grounded in the provided traits or memories and that the response stays within the sentence limit.
 """
 
-load_dotenv()
+load_dotenv(ENV_PATH)
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 #TEMPORARY
@@ -34,19 +43,19 @@ def mock_player_context(user_id: str):
     """
 #TEMPORARY
 
-async def generate_response(user_id: str, user_message: str):
-    memory_context = mock_player_context(user_id) #TO BE REPLACED (brod)
-    formatted_prompt = PET_SYSTEM_PROMPT.format(memory_context=memory_context)
+async def generate_response(user_id: str, user_message: str, memory_context: str | None = None):
+    prompt_context = memory_context or mock_player_context(user_id) #TO BE REPLACED (brod)
+    formatted_prompt = PET_SYSTEM_PROMPT.format(memory_context=prompt_context)
 
     try: 
         llm_reply = await client.responses.create(
-            model = "gpt-5.6-luna", #to decide which gpt model
+            model = config_value("OPENAI_RESPONSE_MODEL", "gpt-5.6-luna"),
             input = [
                 {"role": "system", "content": formatted_prompt},
                 {"role": "user", "content": user_message}
             ],
-            reasoning={"effort":"medium"},
-            max_output_tokens = 120
+            reasoning={"effort": config_value("OPENAI_REASONING_EFFORT", "medium")},
+            max_output_tokens = config_int("OPENAI_MAX_OUTPUT_TOKENS", 240)
         )
     except Exception as e:
         print(e)
@@ -57,4 +66,4 @@ async def generate_response(user_id: str, user_message: str):
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(generate_response())
+    asyncio.run(generate_response("demo-player", "How am I playing?"))

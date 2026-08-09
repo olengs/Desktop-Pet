@@ -1,90 +1,84 @@
-import base64
-import uvicorn
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from __future__ import annotations
 
-from ai_engine import generate_response, client
-from audio_services import text_to_speech, speech_to_text
+import asyncio
+import logging
+import os
+import signal
 
-app = FastAPI(title="MVP Chat")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
+import grpc
 
-class ChatRequest(BaseModel):
-    user_id: str
-    user_message: str
+try:
+    from generated import garena_pet_pb2_grpc as rpc
+    from pet_grpc_service import GarenaPetGrpcService
+except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
+    from GarenaAI.generated import garena_pet_pb2_grpc as rpc
+    from GarenaAI.pet_grpc_service import GarenaPetGrpcService
 
-class ChatResponse(BaseModel):
-    user_id: str
-    reply: str
-    audio_base64: str
+logger = logging.getLogger(__name__)
+DEFAULT_BIND_ADDR = "127.0.0.1:50051"
 
-class VoiceChatResponse(BaseModel):
-    user_id: str
-    user_transcript: str
-    reply: str
-    audio_base64: str
 
-async def process_response(user_id: str, user_message: str):
-    """generate reply text and synthesize audio"""
-    text_reply = await generate_response(user_id, user_message)
+async def start_server(bind_addr: str | None = None) -> grpc.aio.Server:
+    target = bind_addr or os.getenv("GARENA_PET_GRPC_BIND", DEFAULT_BIND_ADDR)
+    server = grpc.aio.server()
+    rpc.add_GarenaPetServiceServicer_to_server(GarenaPetGrpcService(), server)
+    port = server.add_insecure_port(target)
+    if port == 0:
+        raise RuntimeError(f"could not bind Garena pet gRPC server to {target}")
 
-    if not text_reply or not text_reply.strip():
-        text_reply = "I didn't quite catch that. Could you repeat it?"
+    await server.start()
+    logger.info("Garena pet gRPC server listening on %s", target)
+    return server
 
-    audio_bytes = text_to_speech(text_reply)
-    audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
 
-    return {
-        "reply": text_reply,
-        "audio_base64": audio_b64
-    }
+async def serve(bind_addr: str | None = None) -> None:
+    server = await start_server(bind_addr)
+    loop = asyncio.get_running_loop()
+    shutdown_requested = asyncio.Event()
+    registered_signals: list[signal.Signals] = []
 
-@app.get("/")
-def health_check():
-    return {"status": "ok"}
+    for shutdown_signal in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(shutdown_signal, shutdown_requested.set)
+        except (NotImplementedError, RuntimeError):
+            continue
+        registered_signals.append(shutdown_signal)
 
-@app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
-    """handle chat between user and pet, returns text with voiceover"""
+    wait_task = asyncio.create_task(server.wait_for_termination())
+    shutdown_task = asyncio.create_task(shutdown_requested.wait())
+
     try:
-        result = await process_response(request.user_id, request.user_message)
-
-        return ChatResponse(
-            user_id = request.user_id,
-            reply = result["reply"],
-            audio_base64 = result["audio_base64"]
+        done, _ = await asyncio.wait(
+            {wait_task, shutdown_task},
+            return_when=asyncio.FIRST_COMPLETED,
         )
+        for task in done:
+            task.result()
+    except asyncio.CancelledError:
+        logger.info("Garena pet gRPC server shutdown requested")
+        raise
+    finally:
+        for shutdown_signal in registered_signals:
+            loop.remove_signal_handler(shutdown_signal)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"{str(e)}")
+        if not wait_task.done():
+            logger.info("Stopping Garena pet gRPC server")
+            await server.stop(grace=2)
 
-#TO BE IMPLEMENTED
-@app.post("/voice-chat")
-async def voice_chat_endpoint(user_id: str = Form(...), audio_file: UploadFile = File(...)):
-    """user's option to talk to the pet instead of type"""
+        for task in (wait_task, shutdown_task):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(wait_task, shutdown_task, return_exceptions=True)
+
+
+def main() -> None:
+    logging.basicConfig(level=os.getenv("GARENA_AI_LOG_LEVEL", "INFO"))
     try:
-        user_audio_bytes = await audio_file.read()
+        asyncio.run(serve())
+    except KeyboardInterrupt:
+        logger.info("Garena pet gRPC server stopped")
 
-        user_transcript = await speech_to_text(client, user_audio_bytes, audio_file.filename)
-
-        result = await process_response(user_id, user_transcript)
-
-        return VoiceChatResponse(
-            user_id = user_id,
-            user_transcript = user_transcript,
-            reply = result["reply"],
-            audio_base64 = result["audio_base64"]
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"{str(e)}")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    main()
+
