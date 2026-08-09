@@ -62,6 +62,7 @@ private:
     void handleVadChunk(const QByteArray &chunk, qreal chunkLevel);
     void beginSegment(const QByteArray &firstChunk);
     void finishSegment(bool discard);
+    QByteArray convertToCanonicalPcm16Mono(const QByteArray &pcmData) const;
     QByteArray buildWavData(const QByteArray &pcmData) const;
     QString currentModeName() const;
     qreal calculateLevel(const QByteArray &chunk) const;

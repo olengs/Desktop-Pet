@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
@@ -21,7 +25,7 @@ Your job is to help the player understand their gameplay behaviour.
 - Before finalizing, quickly check that every claim is grounded in the provided traits or memories and that the response stays within the sentence limit.
 """
 
-load_dotenv()
+load_dotenv(Path(__file__).with_name(".env"))
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 #TEMPORARY
@@ -34,9 +38,9 @@ def mock_player_context(user_id: str):
     """
 #TEMPORARY
 
-async def generate_response(user_id: str, user_message: str):
-    memory_context = mock_player_context(user_id) #TO BE REPLACED (brod)
-    formatted_prompt = PET_SYSTEM_PROMPT.format(memory_context=memory_context)
+async def generate_response(user_id: str, user_message: str, memory_context: str | None = None):
+    prompt_context = memory_context or mock_player_context(user_id) #TO BE REPLACED (brod)
+    formatted_prompt = PET_SYSTEM_PROMPT.format(memory_context=prompt_context)
 
     try: 
         llm_reply = await client.responses.create(
@@ -57,4 +61,4 @@ async def generate_response(user_id: str, user_message: str):
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(generate_response())
+    asyncio.run(generate_response("demo-player", "How am I playing?"))

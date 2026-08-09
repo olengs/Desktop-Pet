@@ -13,9 +13,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace {
-constexpr int DesiredSampleRate = 32000;
+constexpr int FallbackSampleRate = 48000;
+constexpr int CanonicalVoiceSampleRate = 16000;
+constexpr int CanonicalVoiceChannels = 1;
+constexpr int CanonicalVoiceBitsPerSample = 16;
 constexpr int LevelDecayMs = 80;
 constexpr int VadChunkMs = 50;
 constexpr int VadSilenceToStopMs = 850;
@@ -183,14 +187,12 @@ bool VoiceRecorder::startCapture(CaptureMode mode)
         return false;
     }
 
-    QAudioFormat desiredFormat;
-    desiredFormat.setSampleRate(DesiredSampleRate);
-    desiredFormat.setChannelCount(1);
-    desiredFormat.setSampleFormat(QAudioFormat::Int16);
-
-    m_format = inputDevice.isFormatSupported(desiredFormat)
-        ? desiredFormat
-        : inputDevice.preferredFormat();
+    m_format = inputDevice.preferredFormat();
+    if (!m_format.isValid()) {
+        m_format.setSampleRate(FallbackSampleRate);
+        m_format.setChannelCount(1);
+        m_format.setSampleFormat(QAudioFormat::Int16);
+    }
 
     if (!m_format.isValid()) {
         fail(QStringLiteral("Microphone format is unavailable"));
@@ -329,21 +331,79 @@ void VoiceRecorder::finishSegment(bool discard)
     setStatusText(QStringLiteral("Voice note sent"));
 }
 
+QByteArray VoiceRecorder::convertToCanonicalPcm16Mono(const QByteArray &pcmData) const
+{
+    if (!m_format.isValid() || m_format.bytesPerFrame() <= 0 || m_format.sampleRate() <= 0 || pcmData.isEmpty()) {
+        return {};
+    }
+
+    const int sourceChannels = std::max(1, m_format.channelCount());
+    const int sourceBytesPerSample = std::max(1, m_format.bytesPerSample());
+    const int sourceBytesPerFrame = m_format.bytesPerFrame();
+    const int sourceFrameCount = pcmData.size() / sourceBytesPerFrame;
+    if (sourceFrameCount <= 0) {
+        return {};
+    }
+
+    std::vector<float> monoSamples;
+    monoSamples.reserve(static_cast<std::size_t>(sourceFrameCount));
+    const char *raw = pcmData.constData();
+    for (int frame = 0; frame < sourceFrameCount; ++frame) {
+        const char *frameStart = raw + frame * sourceBytesPerFrame;
+        double sum = 0.0;
+        for (int channel = 0; channel < sourceChannels; ++channel) {
+            const char *sample = frameStart + channel * sourceBytesPerSample;
+            sum += static_cast<double>(m_format.normalizedSampleValue(sample));
+        }
+        monoSamples.push_back(static_cast<float>(std::clamp(sum / sourceChannels, -1.0, 1.0)));
+    }
+
+    const int targetFrameCount = std::max(
+        1,
+        static_cast<int>(std::llround(
+            static_cast<double>(monoSamples.size()) * CanonicalVoiceSampleRate / m_format.sampleRate())));
+
+    QByteArray canonicalPcm;
+    canonicalPcm.reserve(targetFrameCount * 2);
+    QDataStream out(&canonicalPcm, QIODevice::WriteOnly);
+    out.setByteOrder(QDataStream::LittleEndian);
+
+    for (int frame = 0; frame < targetFrameCount; ++frame) {
+        const double sourcePosition = static_cast<double>(frame) * m_format.sampleRate() / CanonicalVoiceSampleRate;
+        const int leftIndex = std::clamp(
+            static_cast<int>(std::floor(sourcePosition)),
+            0,
+            static_cast<int>(monoSamples.size()) - 1);
+        const int rightIndex = std::min(leftIndex + 1, static_cast<int>(monoSamples.size()) - 1);
+        const double fraction = sourcePosition - leftIndex;
+        const double value = monoSamples[leftIndex] + (monoSamples[rightIndex] - monoSamples[leftIndex]) * fraction;
+        const qint16 sample = static_cast<qint16>(std::llround(std::clamp(value, -1.0, 1.0) * 32767.0));
+        out << sample;
+    }
+
+    return canonicalPcm;
+}
+
 QByteArray VoiceRecorder::buildWavData(const QByteArray &pcmData) const
 {
+    const QByteArray canonicalPcm = convertToCanonicalPcm16Mono(pcmData);
+    if (canonicalPcm.isEmpty()) {
+        return {};
+    }
+
     QByteArray wavData;
     QBuffer buffer(&wavData);
     if (!buffer.open(QIODevice::WriteOnly)) {
         return {};
     }
 
-    const quint16 audioFormat = m_format.sampleFormat() == QAudioFormat::Float ? 3 : 1;
-    const quint16 channelCount = static_cast<quint16>(m_format.channelCount());
-    const quint32 sampleRate = static_cast<quint32>(m_format.sampleRate());
-    const quint16 blockAlign = static_cast<quint16>(m_format.bytesPerFrame());
-    const quint16 bitsPerSample = static_cast<quint16>(m_format.bytesPerSample() * 8);
+    const quint16 audioFormat = 1;
+    const quint16 channelCount = CanonicalVoiceChannels;
+    const quint32 sampleRate = CanonicalVoiceSampleRate;
+    const quint16 blockAlign = channelCount * (CanonicalVoiceBitsPerSample / 8);
+    const quint16 bitsPerSample = CanonicalVoiceBitsPerSample;
     const quint32 byteRate = sampleRate * blockAlign;
-    const quint32 dataSize = static_cast<quint32>(pcmData.size());
+    const quint32 dataSize = static_cast<quint32>(canonicalPcm.size());
 
     QDataStream out(&buffer);
     out.setByteOrder(QDataStream::LittleEndian);
@@ -361,7 +421,7 @@ QByteArray VoiceRecorder::buildWavData(const QByteArray &pcmData) const
     out << bitsPerSample;
     buffer.write("data", 4);
     out << dataSize;
-    buffer.write(pcmData);
+    buffer.write(canonicalPcm);
 
     return wavData;
 }
