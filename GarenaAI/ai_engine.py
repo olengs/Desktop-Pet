@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Mapping, Sequence
 
@@ -45,6 +46,7 @@ Rules:
 
 load_dotenv(ENV_PATH)
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+logger = logging.getLogger(__name__)
 
 def empty_player_context(user_id: str) -> str:
     return f"""
@@ -55,6 +57,17 @@ def empty_player_context(user_id: str) -> str:
 async def generate_response(user_id: str, user_message: str, player_context_text: str | None = None):
     prompt_context = player_context_text or empty_player_context(user_id)
     formatted_prompt = PET_SYSTEM_PROMPT.format(memory_context=prompt_context)
+    # logger.info(
+    #     "Formatted assistant prompt for player_id=%s system_chars=%d user_chars=%d\n"
+    #     "--- SYSTEM PROMPT ---\n%s\n"
+    #     "--- USER MESSAGE ---\n%s\n"
+    #     "--- END ASSISTANT PROMPT ---",
+    #     user_id,
+    #     len(formatted_prompt),
+    #     len(user_message),
+    #     formatted_prompt,
+    #     user_message,
+    # )
 
     try: 
         llm_reply = await client.responses.create(
@@ -85,6 +98,16 @@ async def summarize_chat_memory(
     summary_input = _format_summary_input(existing_summary, chat_messages)
 
     try:
+        # logger.info(
+        #     "Formatted memory summary prompt input turns=%d chars=%d\n"
+        #     "--- SUMMARY SYSTEM PROMPT ---\n%s\n"
+        #     "--- SUMMARY USER INPUT ---\n%s\n"
+        #     "--- END SUMMARY PROMPT ---",
+        #     len(chat_messages),
+        #     len(summary_input),
+        #     MEMORY_SUMMARY_PROMPT,
+        #     summary_input,
+        # )
         completion = await client.chat.completions.create(
             model=config_value("GARENA_MEMORY_SUMMARY_MODEL", config_value("OPENAI_RESPONSE_MODEL", "gpt-5.6-luna")),
             messages=[

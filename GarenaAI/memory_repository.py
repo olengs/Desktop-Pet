@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+import logging
+import threading
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 from uuid import UUID
 
+import psycopg
 from psycopg.rows import DictRow
 
 try:
@@ -13,6 +16,9 @@ try:
 except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
     from GarenaAI.config import config_bool, config_int
     from GarenaAI.db import get_connection
+
+logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -46,13 +52,17 @@ class SummaryBatch:
 
 
 class MemoryRepository:
-    def __init__(self, settings: MemorySettings | None = None) -> None:
+    def __init__(
+        self,
+        settings: MemorySettings | None = None,
+        connection: psycopg.Connection | None = None,
+    ) -> None:
         self.settings = settings or MemorySettings.from_config()
+        self._conn = connection
+        self._conn_lock = threading.RLock()
 
     def ensure_user(self, display_name: str) -> UUID:
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                return self._ensure_user_with_cursor(cur, display_name)
+        return self._run_in_session(lambda cur: self._ensure_user_with_cursor(cur, display_name))
 
     def save_chat_message(
         self,
@@ -69,28 +79,36 @@ class MemoryRepository:
         if not cleaned_content:
             return
 
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                user_id = self._ensure_user_with_cursor(cur, display_name)
-                cur.execute(
-                    """
-                    INSERT INTO ai_chat_messages (user_id, role, content, source, request_id)
-                    VALUES (%s, %s, %s, %s, %s)
-                    """,
-                    (user_id, role, cleaned_content, source or "text", request_id or None),
-                )
+        def save(cur: Any) -> None:
+            user_id = self._ensure_user_with_cursor(cur, display_name)
+            cur.execute(
+                """
+                INSERT INTO ai_chat_messages (user_id, role, content, source, request_id)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (user_id, role, cleaned_content, source or "text", request_id or None),
+            )
+
+        self._run_in_session(save)
 
     def build_prompt_context(self, display_name: str, user_message: str = "") -> str:
         if not self.settings.enabled:
             return ""
 
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                user_id = self._fetch_user_id_by_display_name(cur, display_name)
-                if user_id is None:
-                    return "Conversation memory for this player: no prior chat history yet."
-                summary = self._fetch_chat_summary(cur, user_id)
-                chat_messages = self._fetch_recent_unsummarized_chat_messages(cur, user_id)
+        def load(cur: Any) -> tuple[str, list[DictRow]] | None:
+            user_id = self._fetch_user_id_by_display_name(cur, display_name)
+            if user_id is None:
+                return None
+            return (
+                self._fetch_chat_summary(cur, user_id),
+                self._fetch_recent_unsummarized_chat_messages(cur, user_id),
+            )
+
+        loaded = self._run_in_session(load)
+        if loaded is None:
+            return "Conversation memory for this player: no prior chat history yet."
+
+        summary, chat_messages = loaded
 
         sections = ["Conversation memory for this player:"]
 
@@ -115,13 +133,17 @@ class MemoryRepository:
         ):
             return None
 
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                user_id = self._fetch_user_id_by_display_name(cur, display_name)
-                if user_id is None:
-                    return None
-                summary = self._fetch_chat_summary(cur, user_id)
-                rows = self._fetch_unsummarized_chat_messages(cur, user_id)
+        def load(cur: Any) -> tuple[str, list[DictRow]] | None:
+            user_id = self._fetch_user_id_by_display_name(cur, display_name)
+            if user_id is None:
+                return None
+            return self._fetch_chat_summary(cur, user_id), self._fetch_unsummarized_chat_messages(cur, user_id)
+
+        loaded = self._run_in_session(load)
+        if loaded is None:
+            return None
+
+        summary, rows = loaded
 
         if len(rows) < self.settings.summarize_every_messages:
             return None
@@ -138,30 +160,60 @@ class MemoryRepository:
 
         message_uuids = [UUID(message_id) for message_id in message_ids]
 
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                user_id = self._ensure_user_with_cursor(cur, display_name)
-                cur.execute(
-                    """
-                    UPDATE ai_chat_messages
-                    SET summarized_at = now()
-                    WHERE user_id = %s
-                      AND id = ANY(%s::uuid[])
-                      AND summarized_at IS NULL
-                    """,
-                    (user_id, message_uuids),
-                )
-                summarized_count = cur.rowcount or 0
-                if summarized_count <= 0:
-                    return
+        def save(cur: Any) -> None:
+            user_id = self._ensure_user_with_cursor(cur, display_name)
+            cur.execute(
+                """
+                UPDATE ai_chat_messages
+                SET summarized_at = now()
+                WHERE user_id = %s
+                  AND id = ANY(%s::uuid[])
+                  AND summarized_at IS NULL
+                """,
+                (user_id, message_uuids),
+            )
+            summarized_count = cur.rowcount or 0
+            if summarized_count <= 0:
+                return
 
-                cur.execute(
-                    """
-                    INSERT INTO ai_chat_summaries (user_id, summary, summarized_message_count)
-                    VALUES (%s, %s, %s)
-                    """,
-                    (user_id, summary.strip(), summarized_count),
-                )
+            cur.execute(
+                """
+                INSERT INTO ai_chat_summaries (user_id, summary, summarized_message_count)
+                VALUES (%s, %s, %s)
+                """,
+                (user_id, summary.strip(), summarized_count),
+            )
+
+        self._run_in_session(save)
+
+    def close(self) -> None:
+        with self._conn_lock:
+            if self._conn is None or self._conn.closed:
+                self._conn = None
+                return
+            self._conn.close()
+            self._conn = None
+
+    def _connection(self) -> psycopg.Connection:
+        if self._conn is None or self._conn.closed:
+            self._conn = get_connection()
+        return self._conn
+
+    def _run_in_session(self, operation: Callable[[Any], T]) -> T:
+        with self._conn_lock:
+            conn = self._connection()
+            try:
+                with conn.cursor() as cur:
+                    result = operation(cur)
+                conn.commit()
+                return result
+            except BaseException:
+                if not conn.closed:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        logger.exception("failed to roll back PostgreSQL session")
+                raise
 
     def _fetch_recent_unsummarized_chat_messages(self, cur: Any, user_id: UUID) -> list[DictRow]:
         if self.settings.max_chat_messages <= 0:

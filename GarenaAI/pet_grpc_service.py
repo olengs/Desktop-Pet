@@ -104,6 +104,9 @@ class GarenaPetGrpcService(rpc.GarenaPetServiceServicer):
         self._config = config or GrpcServiceConfig()
         self._memory = memory_repository or MemoryRepository(self._config.memory)
 
+    def close(self) -> None:
+        self._memory.close()
+
     async def SendText(self, request: pb.TextRequest, context: grpc.aio.ServicerContext) -> pb.PetResponse:
         player_id = _player_id(request.player_id)
         message = request.message.strip()
