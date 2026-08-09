@@ -17,14 +17,14 @@ import grpc
 try:
     from config import config_bool, config_float, config_value
     from ai_engine import client, generate_response
-    from audio_services import speech_to_text, text_to_speech
+    from audio_services import speech_to_text, text_to_speech, text_to_speech_mime_type
     from generated import garena_pet_pb2 as pb
     from generated import garena_pet_pb2_grpc as rpc
     from pet_context import format_player_context, mood_from_traits
 except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
     from GarenaAI.config import config_bool, config_float, config_value
     from GarenaAI.ai_engine import client, generate_response
-    from GarenaAI.audio_services import speech_to_text, text_to_speech
+    from GarenaAI.audio_services import speech_to_text, text_to_speech, text_to_speech_mime_type
     from GarenaAI.generated import garena_pet_pb2 as pb
     from GarenaAI.generated import garena_pet_pb2_grpc as rpc
     from GarenaAI.pet_context import format_player_context, mood_from_traits
@@ -40,6 +40,7 @@ STT_SAMPLE_RATE = 16000
 class GrpcServiceConfig:
     enable_tts: bool = config_bool("GARENA_PET_GRPC_TTS", False)
     save_wav: bool = config_bool("GARENA_PET_SAVE_WAV", False)
+    save_tts_wav: bool = config_bool("GARENA_PET_SAVE_TTS_WAV", False)
     wav_dir: Path = Path(config_value("GARENA_PET_WAV_DIR", "") or DEFAULT_WAV_DIR)
     stream_heartbeat_seconds: float = config_float("GARENA_PET_GRPC_HEARTBEAT_SECONDS", 30)
 
@@ -219,27 +220,40 @@ class GarenaPetGrpcService(rpc.GarenaPetServiceServicer):
             mood=mood or "thinking",
             transcript=transcript,
         )
-        audio = await self._optional_audio_payload(reply, transcript)
+        audio = await self._optional_audio_payload(request_id, reply, transcript)
         if audio is not None:
             response.audio.CopyFrom(audio)
         return response
 
-    async def _optional_audio_payload(self, reply: str, transcript: str = "") -> pb.AudioPayload | None:
+    async def _optional_audio_payload(self, request_id: str, reply: str, transcript: str = "") -> pb.AudioPayload | None:
         if not self._config.enable_tts or not reply:
             return None
 
         try:
+            logger.info("Generating TTS audio for %d response characters", len(reply))
             audio_bytes = await asyncio.to_thread(text_to_speech, reply)
         except Exception:
             logger.exception("text-to-speech synthesis failed")
             return None
 
         if not audio_bytes:
+            logger.warning("TTS was enabled but no audio bytes were generated; check FISH_AUDIO_API_KEY and Fish settings")
             return None
 
+        mime_type = text_to_speech_mime_type()
+        if self._config.save_tts_wav:
+            await asyncio.to_thread(
+                _save_tts_debug_copy,
+                self._config.wav_dir,
+                request_id,
+                audio_bytes,
+                mime_type,
+            )
+
+        logger.info("Generated TTS audio payload: %d bytes, mime_type=%s", len(audio_bytes), mime_type)
         return pb.AudioPayload(
             audio=audio_bytes,
-            mime_type="audio/mpeg",
+            mime_type=mime_type,
             transcript=transcript,
             text=reply,
         )
@@ -336,6 +350,17 @@ def _save_wav_debug_copy(wav_dir: Path, player_id: str, request_id: str, wav_aud
     path = wav_dir / f"{timestamp}-{safe_player_id}-{safe_request_id}.wav"
     path.write_bytes(wav_audio)
     logger.info("saved desktop pet WAV debug copy to %s", path)
+    return path
+
+
+def _save_tts_debug_copy(wav_dir: Path, request_id: str, audio_bytes: bytes, mime_type: str) -> Path:
+    wav_dir.mkdir(parents=True, exist_ok=True)
+    safe_request_id = _safe_filename_part(request_id or str(uuid.uuid4()))
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    extension = "wav" if "wav" in mime_type.lower() else "audio"
+    path = wav_dir / f"{timestamp}-mimo-tts-{safe_request_id}.{extension}"
+    path.write_bytes(audio_bytes)
+    logger.info("saved Mimo TTS debug copy to %s", path)
     return path
 
 

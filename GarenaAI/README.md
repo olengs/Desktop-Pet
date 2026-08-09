@@ -41,13 +41,15 @@ Use `.config` for non-secret runtime settings such as OpenAI model choices, resp
 
 ## Optional Audio Replies
 
-Text replies work without TTS. To include `AudioPayload` responses for desktop playback, set:
+Text replies work without TTS. To include `AudioPayload` responses for desktop playback, set this in `.config`:
 
 ```text
 GARENA_PET_GRPC_TTS=1
 ```
 
 TTS also requires `FISH_AUDIO_API_KEY`.
+
+For this MVP, text and audio are returned together in the same gRPC response. This can make the reply wait for TTS, but it is more reliable for the demo because it does not require the desktop stream receiver to be connected before audio can arrive. The desktop client allows up to 25 seconds for these text-plus-audio replies.
 
 ## Save Incoming WAV Files
 
@@ -63,4 +65,11 @@ Saved files use timestamped names like:
 test/20260809-104500-demo-player-request-id.wav
 ```
 
-Saved voice files are normalized to `16 kHz`, `16-bit`, mono WAV before transcription. Fish TTS replies are requested as MP3 at `44.1 kHz` and `128 kbps`.
+Saved voice files are normalized to `16 kHz`, `16-bit`, mono WAV before transcription. Fish TTS replies are requested as WAV at `44.1 kHz`.
+
+To save Mimo's generated TTS replies in the same `test/` folder, set:
+
+```text
+GARENA_PET_SAVE_TTS_WAV=1
+FISH_TTS_FORMAT=wav
+```
