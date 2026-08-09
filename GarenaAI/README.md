@@ -87,7 +87,21 @@ TTS also requires `FISH_AUDIO_API_KEY`.
 
 Fish TTS accepts up to 500 characters per request. GarenaAI normalizes and clamps the spoken text before calling Fish, while the desktop pet displays the regular text reply and plays the returned audio payload.
 
+Voice selection is pinned with `FISH_TTS_REFERENCE_ID`. `FISH_TTS_BACKEND` chooses the Fish generation model, while `FISH_TTS_REFERENCE_ID` chooses the speaker voice. The demo config uses a public Fish voice ID so the desktop pet does not change voices between runs; replace it with another Fish voice/model ID if you want a different Mimo voice.
+
 For voice messages, `SendVoice` streams a transcript response as soon as STT finishes, then streams the final text/audio reply after AI generation. Text messages still use a single `SendText` response. The desktop client allows up to 25 seconds for each gRPC request.
+
+## Death Recap Feedback
+
+GarenaAI also exposes an HTTP telemetry endpoint on `127.0.0.1:8001`:
+
+```bash
+curl -X POST http://127.0.0.1:8001/death-recap \
+  -H "Content-Type: application/json" \
+  -d "@sample_death_recap_2.json"
+```
+
+After feedback is generated, the HTTP handler publishes it through the desktop gRPC receive stream. If `GARENA_PET_GRPC_TTS=1` and Fish TTS returns audio, the pushed message includes an `AudioPayload` so DesktopPet displays and speaks the feedback. The message is sent to the recap `user_id` and to `GARENA_DEATH_RECAP_PUSH_PLAYER_ID`, which defaults to `demo-player` for the local desktop demo.
 
 ## Save Incoming WAV Files
 

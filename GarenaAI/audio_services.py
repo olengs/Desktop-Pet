@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 from fish_audio_sdk import Session, TTSRequest
 
 try:
-    from config import ENV_PATH, config_bool, config_int, config_value
+    from config import ENV_PATH, config_bool, config_float, config_int, config_value
 except ImportError:
-    from GarenaAI.config import ENV_PATH, config_bool, config_int, config_value
+    from GarenaAI.config import ENV_PATH, config_bool, config_float, config_int, config_value
 
 load_dotenv(ENV_PATH)
 FISH_CLIENT = os.getenv("FISH_AUDIO_API_KEY")
@@ -61,7 +61,10 @@ def text_to_speech(text: str):
         mp3_bitrate = config_int("FISH_TTS_MP3_BITRATE", 128),
         latency = config_value("FISH_TTS_LATENCY", "balanced"),
         chunk_length = config_int("FISH_TTS_CHUNK_LENGTH", 200),
-        normalize = config_bool("FISH_TTS_NORMALIZE", True)
+        normalize = config_bool("FISH_TTS_NORMALIZE", True),
+        reference_id = _optional_config_value("FISH_TTS_REFERENCE_ID"),
+        temperature = _sampling_config_value("FISH_TTS_TEMPERATURE", 0.2),
+        top_p = _sampling_config_value("FISH_TTS_TOP_P", 0.5),
     )
     backend = config_value("FISH_TTS_BACKEND", "s2-pro")
 
@@ -71,6 +74,16 @@ def text_to_speech(text: str):
         audio_bytes += chunk
 
     return audio_bytes
+
+
+def _optional_config_value(key: str) -> str | None:
+    value = config_value(key).strip()
+    return value or None
+
+
+def _sampling_config_value(key: str, default: float) -> float:
+    return max(0.0, min(config_float(key, default), 1.0))
+
 
 def text_to_speech_mime_type():
     """returns the MIME type matching the configured Fish TTS output format"""

@@ -1,12 +1,22 @@
 #include "backendclient.h"
 
 #include <QIODevice>
+#include <QSettings>
 #include <QUrl>
 
 namespace {
+constexpr auto DefaultPlayerId = "demo-player";
+constexpr auto PlayerIdSettingsKey = "identity/playerId";
+
 QString moodOrDefault(const QString &mood)
 {
     return mood.isEmpty() ? QStringLiteral("thinking") : mood;
+}
+
+QString normalizePlayerId(const QString &playerId)
+{
+    const QString trimmed = playerId.trimmed();
+    return trimmed.isEmpty() ? QString::fromLatin1(DefaultPlayerId) : trimmed;
 }
 }
 
@@ -14,6 +24,8 @@ BackendClient::BackendClient(QObject *parent)
     : QObject(parent)
     , m_grpc(this)
 {
+    const QString savedPlayerId = QSettings().value(QString::fromLatin1(PlayerIdSettingsKey)).toString();
+    m_playerId = normalizePlayerId(savedPlayerId);
     m_grpc.setTarget(m_backendTarget);
 
     m_replyAudioOutput.setVolume(0.85);
@@ -107,13 +119,24 @@ QString BackendClient::playerId() const
 
 void BackendClient::setPlayerId(const QString &playerId)
 {
-    const QString normalized = playerId.trimmed().isEmpty() ? QStringLiteral("demo-player") : playerId.trimmed();
+    const QString normalized = normalizePlayerId(playerId);
     if (m_playerId == normalized) {
         return;
     }
 
+    const bool reconnectStream = m_streamConnected;
+    if (reconnectStream) {
+        disconnectMessageStream();
+    }
+
     m_playerId = normalized;
+    QSettings().setValue(QString::fromLatin1(PlayerIdSettingsKey), m_playerId);
     emit playerIdChanged();
+    setStatusText(QStringLiteral("Signed in as %1").arg(m_playerId));
+
+    if (reconnectStream) {
+        connectMessageStream();
+    }
 }
 
 bool BackendClient::online() const
@@ -279,6 +302,11 @@ void BackendClient::handleBackendMessage(
     const QByteArray &audio,
     const QString &audioMimeType)
 {
+    if (text == QStringLiteral("Mimo receive stream is alive.") && audio.isEmpty()) {
+        setOnline(true);
+        return;
+    }
+
     setOnline(true);
     setStatusText(QStringLiteral("gRPC backend message received"));
 

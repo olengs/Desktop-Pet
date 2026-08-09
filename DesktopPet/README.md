@@ -9,6 +9,7 @@ Cross-platform Qt/QML desktop pet prototype for the hackathon MVP. The core app 
 - Compact pet-only mode with idle sleep and disturbed/angry wake behavior.
 - QML pet sprite with `idle`, `happy`, `annoyed`, `thinking`, `sit`, `sleep`, and `stretch` poses.
 - Chat and settings windows opened from icon buttons around Mimo.
+- Player login in settings so each tester can use a separate backend chat-memory key.
 - Closing chat/settings leaves Mimo running on the desktop.
 - Push-to-talk and voice activity microphone modes.
 - C++ gRPC backend client for:
@@ -114,6 +115,8 @@ $env:GARENA_PET_GRPC_TARGET="127.0.0.1:50051"
 See [../docs/garena-ai-desktop-pet-handoff.md](../docs/garena-ai-desktop-pet-handoff.md) for the Python gRPC integration and full team handoff.
 See [What Is Built](#what-is-built) and [Project Layout](#project-layout) for compact mode and sprite component notes.
 
+Use the settings window's Player Login field to choose a unique player ID before chatting. GarenaAI stores conversation memory by that `player_id`, and the desktop app remembers the selected ID locally between launches.
+
 On macOS, the plain `bin/GarenaPet` executable embeds `NSMicrophoneUsageDescription` at link time. Keep the Apple-specific plist/linker block in `CMakeLists.txt`; without it, Qt cannot load the `QMicrophonePermission` backend for microphone access.
 
 ## Backend Contract
@@ -137,7 +140,7 @@ service GarenaPetService {
 2. Drag Mimo to the corner of the screen.
 3. Click the chat icon and ask: `How are you?`
 4. Hold `Hold` to send a push-to-talk voice note.
-5. Click the settings icon to switch between `Push` and `Listen`, tune voice sensitivity, or click `Pull` for pending backend messages.
-6. Click `Stream` to connect the gRPC receive stream.
+5. Click the settings icon to log in with a unique player ID, switch between `Push` and `Listen`, tune voice sensitivity, or click `Pull` for pending backend messages.
+6. Confirm the gRPC receive stream is connected; it auto-connects on launch, and the `Stream` button can reconnect it if needed.
 7. Close chat/settings and confirm Mimo stays on the desktop.
 8. Leave Mimo alone to see the sleep pose, or drag while asleep to briefly annoy Mimo.
