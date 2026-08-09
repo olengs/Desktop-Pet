@@ -62,16 +62,18 @@ To remove the AI chat tables during cleanup, run [destroydb.sql](destroydb.sql) 
 
 ## Memory Settings
 
-The desktop pet uses database-backed recent chat context when `GARENA_MEMORY_ENABLED=1`. These `.config` values control how much stored conversation is sent to the OpenAI model:
+The desktop pet uses database-backed conversation memory when `GARENA_MEMORY_ENABLED=1`. The incoming gRPC `player_id` string is treated as `ai_users.display_name`; `ai_users.user_id` is an internal UUID primary key used by chat and summary tables. Raw chat turns are saved in `ai_chat_messages`; once the unsummarized turn count reaches `GARENA_MEMORY_SUMMARIZE_EVERY_MESSAGES`, GarenaAI asks OpenAI to fold those turns into a new rolling `ai_chat_summaries` row.
 
 ```text
 GARENA_MEMORY_ENABLED=1
 GARENA_MEMORY_SAVE_CHAT_HISTORY=1
 GARENA_MEMORY_MAX_CHAT_MESSAGES=8
+GARENA_MEMORY_SUMMARIZE_EVERY_MESSAGES=8
+GARENA_MEMORY_SUMMARY_MAX_OUTPUT_TOKENS=360
 GARENA_MEMORY_MAX_CONTEXT_CHARS=6000
 ```
 
-Lower `GARENA_MEMORY_MAX_CHAT_MESSAGES` to reduce input token cost. The active schema only creates `ai_users` and `ai_chat_messages`; the desktop gRPC contract carries conversation data only.
+`GARENA_MEMORY_MAX_CHAT_MESSAGES` controls the maximum unsummarized recent chat turns included in each reply prompt, fetched by `created_at` descending. The latest rolling summary is also included when present. Each new summary is generated through OpenAI Chat Completions from the previous summary plus the latest unsummarized batch, then inserted as a new `ai_chat_summaries` row. Summarized chat rows are kept for debugging/recovery and marked with `summarized_at`; the desktop gRPC contract still carries conversation data only.
 
 ## Optional Audio Replies
 
