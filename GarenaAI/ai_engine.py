@@ -44,6 +44,25 @@ Rules:
 - Return only the updated summary.
 """
 
+DEATH_RECAP_SYSTEM_PROMPT = """
+You are Mimo, a friendly, observant AI desktop pet companion for a gamer, reacting to a match death recap sent by the game.
+
+*CURRENT DEATH RECAP*
+{current_summary}
+
+*SIMILARITY SIGNAL*
+{similar_context}
+
+*RULES*
+- Only use facts present in the current recap above. Do not invent stats, positions, or causes not shown there.
+- No details about past deaths are available, only a count of how many past deaths were very similar to this one. If that count is greater than zero, note that this looks like a repeating pattern for the player, without inventing specifics about what happened those other times.
+- If the count is zero, just react to the current recap.
+- Be friendly, slightly playful, observant, and direct like a real gaming buddy giving quick feedback.
+- Keep the reply under 3 sentences and under 500 characters so it fits a desktop chat bubble.
+- Finish with a complete sentence. Prefer a shorter complete answer over a longer answer that trails off.
+- Return only the reply, with no extra labels, preamble, or explanation.
+"""
+
 load_dotenv(ENV_PATH)
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 logger = logging.getLogger(__name__)
@@ -146,6 +165,49 @@ def _format_summary_input(
             "\n".join(rows) or "- No new chat turns.",
         ]
     )
+
+
+async def embed_text(text: str) -> list[float]:
+    """Embed a piece of text for pgvector similarity search."""
+    response = await client.embeddings.create(
+        model=config_value("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
+        input=text,
+    )
+    return response.data[0].embedding
+
+
+async def generate_death_recap_feedback(
+    user_id: str,
+    current_summary: str,
+    similar_count: int,
+) -> str:
+    """React to a death recap, grounded in how many similar past deaths this player has."""
+    similar_context = _format_similar_context(similar_count)
+    formatted_prompt = DEATH_RECAP_SYSTEM_PROMPT.format(
+        current_summary=current_summary,
+        similar_context=similar_context,
+    )
+
+    try:
+        llm_reply = await client.responses.create(
+            model=config_value("OPENAI_RESPONSE_MODEL", "gpt-5.6-luna"),
+            input=[{"role": "system", "content": formatted_prompt}],
+            reasoning={"effort": config_value("OPENAI_REASONING_EFFORT", "medium")},
+            max_output_tokens=config_int("OPENAI_MAX_OUTPUT_TOKENS", 240),
+        )
+    except Exception as e:
+        print(e)
+        return "Rough one out there. I couldn't pull up the full recap breakdown just now, but I've got it logged."
+
+    reply = (llm_reply.output_text or "").strip()
+    return reply or "Rough one out there. Try me again in a bit for the full breakdown."
+
+
+def _format_similar_context(similar_count: int) -> str:
+    if similar_count <= 0:
+        return "No similar past deaths on record yet."
+    return f"{similar_count} past death(s) on record are very similar to this one (no further detail available)."
+
 
 if __name__ == "__main__":
     import asyncio

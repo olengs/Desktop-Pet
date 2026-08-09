@@ -6,18 +6,22 @@ import os
 import signal
 
 import grpc
+import uvicorn
 
 try:
     from db import close_open_connections
     from generated import garena_pet_pb2_grpc as rpc
+    from http_api import app as http_app
     from pet_grpc_service import GarenaPetGrpcService
 except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
     from GarenaAI.db import close_open_connections
     from GarenaAI.generated import garena_pet_pb2_grpc as rpc
+    from GarenaAI.http_api import app as http_app
     from GarenaAI.pet_grpc_service import GarenaPetGrpcService
 
 logger = logging.getLogger(__name__)
 DEFAULT_BIND_ADDR = "127.0.0.1:50051"
+DEFAULT_HTTP_BIND = "127.0.0.1:8001"
 
 
 async def start_server(
@@ -36,9 +40,22 @@ async def start_server(
     return server
 
 
-async def serve(bind_addr: str | None = None) -> None:
+def _split_host_port(bind_addr: str) -> tuple[str, int]:
+    host, _, port = bind_addr.rpartition(":")
+    return host or "127.0.0.1", int(port)
+
+
+async def serve(bind_addr: str | None = None, http_bind_addr: str | None = None) -> None:
     service = GarenaPetGrpcService()
     server = await start_server(bind_addr, service)
+
+    http_host, http_port = _split_host_port(
+        http_bind_addr or os.getenv("GARENA_AI_HTTP_BIND", DEFAULT_HTTP_BIND)
+    )
+    http_server = uvicorn.Server(
+        uvicorn.Config(http_app, host=http_host, port=http_port, log_level="info")
+    )
+
     loop = asyncio.get_running_loop()
     shutdown_requested = asyncio.Event()
     registered_signals: list[signal.Signals] = []
@@ -50,31 +67,36 @@ async def serve(bind_addr: str | None = None) -> None:
             continue
         registered_signals.append(shutdown_signal)
 
-    wait_task = asyncio.create_task(server.wait_for_termination())
+    grpc_wait_task = asyncio.create_task(server.wait_for_termination())
+    http_wait_task = asyncio.create_task(http_server.serve())
     shutdown_task = asyncio.create_task(shutdown_requested.wait())
 
     try:
         done, _ = await asyncio.wait(
-            {wait_task, shutdown_task},
+            {grpc_wait_task, http_wait_task, shutdown_task},
             return_when=asyncio.FIRST_COMPLETED,
         )
         for task in done:
             task.result()
     except asyncio.CancelledError:
-        logger.info("Garena pet gRPC server shutdown requested")
+        logger.info("Garena AI shutdown requested")
         raise
     finally:
         for shutdown_signal in registered_signals:
             loop.remove_signal_handler(shutdown_signal)
 
-        if not wait_task.done():
+        if not grpc_wait_task.done():
             logger.info("Stopping Garena pet gRPC server")
             await server.stop(grace=2)
 
-        for task in (wait_task, shutdown_task):
+        if not http_wait_task.done():
+            logger.info("Stopping Garena AI HTTP server")
+            http_server.should_exit = True
+
+        for task in (grpc_wait_task, http_wait_task, shutdown_task):
             if not task.done():
                 task.cancel()
-        await asyncio.gather(wait_task, shutdown_task, return_exceptions=True)
+        await asyncio.gather(grpc_wait_task, http_wait_task, shutdown_task, return_exceptions=True)
         try:
             service.close()
         finally:

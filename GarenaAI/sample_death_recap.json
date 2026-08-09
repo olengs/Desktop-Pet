@@ -1,0 +1,92 @@
+{
+  "game_id": "17de2843-213d-4475-bc85-6db8f9dbee22",
+  "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+  "events": [
+    {
+      "event_type": "item_used",
+      "timestamp": "2026-08-09T12:01:01.992209+00:00",
+      "match_id": "match_6ca99c21",
+      "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+      "item": "medkit",
+      "interrupted": false,
+      "position": {"x": 787.1, "y": 96.1, "z": 24.6}
+    },
+    {
+      "event_type": "player_position_snapshot",
+      "timestamp": "2026-08-09T12:01:02.197241+00:00",
+      "match_id": "match_6ca99c21",
+      "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+      "position": {"x": 787.9, "y": 98.8, "z": 24.6},
+      "is_sprinting": true,
+      "is_crouching": false
+    },
+    {
+      "event_type": "shot_fired",
+      "timestamp": "2026-08-09T12:01:02.315806+00:00",
+      "match_id": "match_6ca99c21",
+      "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+      "weapon": "Vector",
+      "position": {"x": 785.2, "y": 101.0, "z": 24.6},
+      "target_id": "41848d30-c4c2-48d6-9735-744de33cd31c",
+      "hit": true
+    },
+    {
+      "event_type": "damage_dealt",
+      "timestamp": "2026-08-09T12:01:02.315806+00:00",
+      "match_id": "match_6ca99c21",
+      "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+      "target_id": "41848d30-c4c2-48d6-9735-744de33cd31c",
+      "weapon": "Vector",
+      "damage": 13,
+      "headshot": false
+    },
+    {
+      "event_type": "shot_fired",
+      "timestamp": "2026-08-09T12:01:05.274141+00:00",
+      "match_id": "match_6ca99c21",
+      "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+      "weapon": "Vector",
+      "position": {"x": 785.6, "y": 102.1, "z": 24.6},
+      "target_id": null,
+      "hit": false
+    },
+    {
+      "event_type": "zone_damage_tick",
+      "timestamp": "2026-08-09T12:01:05.953709+00:00",
+      "match_id": "match_6ca99c21",
+      "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+      "damage": 6,
+      "health_after": 94,
+      "position": {"x": 783.7, "y": 99.7, "z": 24.6}
+    },
+    {
+      "event_type": "zone_damage_tick",
+      "timestamp": "2026-08-09T12:01:06.691609+00:00",
+      "match_id": "match_6ca99c21",
+      "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+      "damage": 5,
+      "health_after": 89,
+      "position": {"x": 781.1, "y": 97.9, "z": 24.6}
+    },
+    {
+      "event_type": "player_death",
+      "timestamp": "2026-08-09T12:01:11.617252+00:00",
+      "match_id": "match_6ca99c21",
+      "victim": {
+        "user_id": "1b87e409-1064-40f7-9bae-0bfb9f6ffbe6",
+        "squad_id": "squad_11",
+        "position": {"x": 781.1, "y": 97.9, "z": 24.6},
+        "health_before_death": 0,
+        "was_downed_first": false,
+        "downed_timestamp": null
+      },
+      "killer": {
+        "user_id": "41848d30-c4c2-48d6-9735-744de33cd31c",
+        "weapon": "SVD",
+        "distance_to_victim": 59.4,
+        "headshot": false
+      },
+      "cause_of_death": "elimination"
+    }
+  ]
+}

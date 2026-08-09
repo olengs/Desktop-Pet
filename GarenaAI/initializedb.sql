@@ -49,3 +49,23 @@ CREATE TABLE IF NOT EXISTS ai_chat_summaries (
 
 CREATE INDEX IF NOT EXISTS ai_chat_summaries_user_created_idx
 ON ai_chat_summaries (user_id, created_at DESC, id DESC);
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS game (
+  game_id UUID PRIMARY KEY,
+  game_name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS user_game_data (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES ai_users(user_id),
+  game_id UUID NOT NULL REFERENCES game(game_id),
+  game_data VECTOR NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS user_game_data_embedding_idx
+ON user_game_data USING hnsw (game_data vector_cosine_ops);
+
+CREATE INDEX IF NOT EXISTS user_game_data_user_game_idx
+ON user_game_data (user_id, game_id);

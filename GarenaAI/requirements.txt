@@ -23,6 +23,7 @@ pydantic_core==2.46.4
 python-dotenv==1.2.2
 python-multipart==0.0.32
 psycopg[binary]>=3.2,<4
+pgvector==0.4.1
 PyYAML==6.0.3
 sniffio==1.3.1
 starlette==1.6.0
@@ -30,7 +31,6 @@ tqdm==4.70.0
 typing-inspection==0.4.2
 typing_extensions==4.16.0
 uvicorn==0.52.1
-uvloop==0.22.1
 watchfiles==1.2.0
 websockets==17.0.1
 wsproto==1.3.2
