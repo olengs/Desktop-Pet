@@ -111,9 +111,9 @@ $env:GARENA_PET_GRPC_TARGET="127.0.0.1:50051"
 .\bin\GarenaPet.exe
 ```
 
-See [docs/python-ai-backend.md](docs/python-ai-backend.md) for the Python gRPC integration skeleton.
-See [docs/pet-art.md](docs/pet-art.md) for compact mode and custom sprite sheet setup.
-See [docs/team-handoff.md](docs/team-handoff.md) for the full team handoff.
+See [../docs/python-ai-backend.md](../docs/python-ai-backend.md) for the Python gRPC integration skeleton.
+See [../docs/pet-art.md](../docs/pet-art.md) for compact mode and custom sprite sheet setup.
+See [../docs/team-handoff.md](../docs/team-handoff.md) for the full team handoff.
 
 On macOS, the plain `bin/GarenaPet` executable embeds `NSMicrophoneUsageDescription` at link time. Keep the Apple-specific plist/linker block in `CMakeLists.txt`; without it, Qt cannot load the `QMicrophonePermission` backend for microphone access.
 

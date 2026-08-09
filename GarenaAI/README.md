@@ -35,9 +35,20 @@ Use `.env` only for secrets:
 ```text
 OPENAI_API_KEY=...
 FISH_AUDIO_API_KEY=...
+GARENA_DB_PASSWORD=...
 ```
 
-Use `.config` for non-secret runtime settings such as OpenAI model choices, response token budget, Fish TTS format, and local debug toggles.
+Use `.config` for non-secret runtime settings such as OpenAI model choices, response token budget, Fish TTS format, local debug toggles, and PostgreSQL host/user/database settings.
+
+## PostgreSQL Connection
+
+The AI service loads PostgreSQL settings from `.config` and reads the database password from `.env`. To test the connection without touching `main.py`, run:
+
+```bash
+python -m GarenaAI.test_db_connection
+```
+
+`pgConnect.json` is still supported as a fallback, but new non-secret DB settings should live in `.config`.
 
 ## Optional Audio Replies
 
