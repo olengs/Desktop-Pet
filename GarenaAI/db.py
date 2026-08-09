@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import threading
+import weakref
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -18,6 +21,9 @@ except ImportError:  # Allows `python -m GarenaAI.test_db_connection` from repo 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PGCONNECT_PATH = REPO_ROOT / "pgConnect.json"
+logger = logging.getLogger(__name__)
+_OPEN_CONNECTIONS: weakref.WeakSet[psycopg.Connection] = weakref.WeakSet()
+_OPEN_CONNECTIONS_LOCK = threading.RLock()
 
 
 class DatabaseConfigError(RuntimeError):
@@ -123,7 +129,28 @@ def load_postgres_config(
 def get_connection(config: PostgresConfig | None = None) -> psycopg.Connection:
     """Open a psycopg3 connection using the project PostgreSQL settings."""
     postgres_config = config or load_postgres_config()
-    return psycopg.connect(**postgres_config.connect_kwargs(), row_factory=dict_row)
+    conn = psycopg.connect(**postgres_config.connect_kwargs(), row_factory=dict_row)
+    _track_connection(conn)
+    return conn
+
+
+def close_open_connections() -> None:
+    """Close any tracked PostgreSQL connections still open during shutdown."""
+    with _OPEN_CONNECTIONS_LOCK:
+        connections = list(_OPEN_CONNECTIONS)
+
+    for conn in connections:
+        if conn.closed:
+            continue
+        try:
+            conn.close()
+        except Exception:
+            logger.exception("failed to close PostgreSQL connection during shutdown")
+
+    with _OPEN_CONNECTIONS_LOCK:
+        for conn in connections:
+            if conn.closed:
+                _OPEN_CONNECTIONS.discard(conn)
 
 
 def check_connection() -> dict[str, Any]:
@@ -197,6 +224,11 @@ def _setting_first(*keys: str) -> str | None:
         if value:
             return value
     return None
+
+
+def _track_connection(conn: psycopg.Connection) -> None:
+    with _OPEN_CONNECTIONS_LOCK:
+        _OPEN_CONNECTIONS.add(conn)
 
 
 def _server_value(server: Mapping[str, Any], *keys: str) -> Any:

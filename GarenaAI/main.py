@@ -7,8 +7,14 @@ import signal
 
 import grpc
 
-from generated import garena_pet_pb2_grpc as rpc
-from pet_grpc_service import GarenaPetGrpcService
+try:
+    from db import close_open_connections
+    from generated import garena_pet_pb2_grpc as rpc
+    from pet_grpc_service import GarenaPetGrpcService
+except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
+    from GarenaAI.db import close_open_connections
+    from GarenaAI.generated import garena_pet_pb2_grpc as rpc
+    from GarenaAI.pet_grpc_service import GarenaPetGrpcService
 
 logger = logging.getLogger(__name__)
 DEFAULT_BIND_ADDR = "127.0.0.1:50051"
@@ -65,6 +71,7 @@ async def serve(bind_addr: str | None = None) -> None:
             if not task.done():
                 task.cancel()
         await asyncio.gather(wait_task, shutdown_task, return_exceptions=True)
+        close_open_connections()
 
 
 def main() -> None:
@@ -73,8 +80,9 @@ def main() -> None:
         asyncio.run(serve())
     except KeyboardInterrupt:
         logger.info("Garena pet gRPC server stopped")
+    finally:
+        close_open_connections()
 
 
 if __name__ == "__main__":
     main()
-

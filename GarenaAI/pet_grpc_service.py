@@ -17,14 +17,14 @@ import grpc
 try:
     from config import config_bool, config_float, config_value
     from ai_engine import client, generate_response, summarize_chat_memory
-    from audio_services import speech_to_text, text_to_speech, text_to_speech_mime_type
+    from audio_services import clamp_tts_text, speech_to_text, text_to_speech, text_to_speech_mime_type
     from generated import garena_pet_pb2 as pb
     from generated import garena_pet_pb2_grpc as rpc
     from memory_repository import MemoryRepository, MemorySettings
 except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
     from GarenaAI.config import config_bool, config_float, config_value
     from GarenaAI.ai_engine import client, generate_response, summarize_chat_memory
-    from GarenaAI.audio_services import speech_to_text, text_to_speech, text_to_speech_mime_type
+    from GarenaAI.audio_services import clamp_tts_text, speech_to_text, text_to_speech, text_to_speech_mime_type
     from GarenaAI.generated import garena_pet_pb2 as pb
     from GarenaAI.generated import garena_pet_pb2_grpc as rpc
     from GarenaAI.memory_repository import MemoryRepository, MemorySettings
@@ -302,9 +302,17 @@ class GarenaPetGrpcService(rpc.GarenaPetServiceServicer):
         if not self._config.enable_tts or not reply:
             return None
 
+        tts_text = clamp_tts_text(reply)
+        if not tts_text:
+            return None
+
         try:
-            logger.info("Generating TTS audio for %d response characters", len(reply))
-            audio_bytes = await asyncio.to_thread(text_to_speech, reply)
+            logger.info(
+                "Generating TTS audio for %d response characters%s",
+                len(tts_text),
+                " (clamped)" if len(tts_text) < len(" ".join(reply.split())) else "",
+            )
+            audio_bytes = await asyncio.to_thread(text_to_speech, tts_text)
         except Exception:
             logger.exception("text-to-speech synthesis failed")
             return None
@@ -328,7 +336,7 @@ class GarenaPetGrpcService(rpc.GarenaPetServiceServicer):
             audio=audio_bytes,
             mime_type=mime_type,
             transcript=transcript,
-            text=reply,
+            text=tts_text,
         )
 
 

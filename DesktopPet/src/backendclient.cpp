@@ -298,6 +298,7 @@ void BackendClient::playAudioReply(const QByteArray &audio, const QString &audio
     }
 
     m_replyPlayer.stop();
+    m_replyPlayer.setSource(QUrl());
     m_replyAudioBuffer.close();
     m_replyAudioBytes = audio;
     m_replyAudioBuffer.setData(m_replyAudioBytes);
@@ -305,19 +306,21 @@ void BackendClient::playAudioReply(const QByteArray &audio, const QString &audio
         emit chatError(QStringLiteral("Could not prepare Mimo audio reply"));
         return;
     }
+    m_replyAudioBuffer.seek(0);
 
-    m_replyPlayer.setSourceDevice(&m_replyAudioBuffer, audioSourceHint(audioMimeType));
+    m_replyPlayer.setSourceDevice(&m_replyAudioBuffer, audioSourceHint(audioMimeType, ++m_replyAudioSerial));
+    m_replyPlayer.setPosition(0);
     m_replyPlayer.play();
 }
 
-QUrl BackendClient::audioSourceHint(const QString &audioMimeType) const
+QUrl BackendClient::audioSourceHint(const QString &audioMimeType, quint64 serial) const
 {
     const QString lower = audioMimeType.toLower();
     if (lower.contains(QStringLiteral("mpeg")) || lower.contains(QStringLiteral("mp3"))) {
-        return QUrl(QStringLiteral("mimo-reply.mp3"));
+        return QUrl(QStringLiteral("mimo-reply-%1.mp3").arg(serial));
     }
     if (lower.contains(QStringLiteral("ogg"))) {
-        return QUrl(QStringLiteral("mimo-reply.ogg"));
+        return QUrl(QStringLiteral("mimo-reply-%1.ogg").arg(serial));
     }
-    return QUrl(QStringLiteral("mimo-reply.wav"));
+    return QUrl(QStringLiteral("mimo-reply-%1.wav").arg(serial));
 }
