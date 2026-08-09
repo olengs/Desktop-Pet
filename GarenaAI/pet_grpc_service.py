@@ -328,7 +328,7 @@ def _canonicalize_wav_for_stt(wav_audio: bytes) -> bytes:
             frame_count = reader.getnframes()
             compression = reader.getcomptype()
             frames = reader.readframes(frame_count)
-    except wave.Error:
+    except (EOFError, wave.Error):
         logger.warning("received voice payload is not a readable WAV; forwarding original bytes")
         return wav_audio
 

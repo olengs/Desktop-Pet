@@ -1,7 +1,4 @@
-DROP TABLE IF EXISTS ai_memories CASCADE;
-DROP TABLE IF EXISTS ai_game_stats CASCADE;
-DROP TABLE IF EXISTS ai_traits CASCADE;
-DROP TABLE IF EXISTS ai_game_history CASCADE;
+-- Legacy prototype tables may exist in older hackathon databases.
 DROP TABLE IF EXISTS ai_chat_messages CASCADE;
 DROP TABLE IF EXISTS ai_users CASCADE;
 

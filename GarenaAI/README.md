@@ -58,23 +58,20 @@ python -m GarenaAI.initialize_db
 
 This runs [initializedb.sql](initializedb.sql) through the same psycopg3 connection settings as the AI service.
 
-To remove the AI memory tables during cleanup, run [destroydb.sql](destroydb.sql) with any Postgres SQL client connected to the same database.
+To remove the AI chat tables during cleanup, run [destroydb.sql](destroydb.sql) with any Postgres SQL client connected to the same database. It also drops old prototype game/memory tables if they exist.
 
 ## Memory Settings
 
-The desktop pet uses database-backed memory when `GARENA_MEMORY_ENABLED=1`. These `.config` values control how much stored context is sent to the OpenAI model:
+The desktop pet uses database-backed recent chat context when `GARENA_MEMORY_ENABLED=1`. These `.config` values control how much stored conversation is sent to the OpenAI model:
 
 ```text
 GARENA_MEMORY_ENABLED=1
 GARENA_MEMORY_SAVE_CHAT_HISTORY=1
-GARENA_MEMORY_SAVE_GAME_HISTORY=1
 GARENA_MEMORY_MAX_CHAT_MESSAGES=8
-GARENA_MEMORY_MAX_GAME_EVENTS=8
-GARENA_MEMORY_MAX_MEMORIES=6
 GARENA_MEMORY_MAX_CONTEXT_CHARS=6000
 ```
 
-Lower the `MAX_*` settings to reduce input token cost. The desktop gRPC contract only carries conversation data; game data is ingested inside the AI backend and read from Postgres when building prompt context. Averaged game stats are received from upstream and stored directly as `JSONB`, so each game can send flexible stat names such as `aggression`, `accuracy`, or `sniper_affinity` without schema changes. The AI service uses `ai_`-prefixed tables, such as `ai_chat_messages`, `ai_game_history`, and `ai_game_stats`, to avoid colliding with other hackathon backend tables.
+Lower `GARENA_MEMORY_MAX_CHAT_MESSAGES` to reduce input token cost. The active schema only creates `ai_users` and `ai_chat_messages`; the desktop gRPC contract carries conversation data only.
 
 ## Optional Audio Replies
 
