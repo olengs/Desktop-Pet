@@ -1,0 +1,13 @@
+{
+    "Servers": {
+        "1": {
+            "Name": "Garena",
+            "Group": "Garena",
+            "Host": "pg-1a218b76-smu-fe3e.c.aivencloud.com",
+            "Port": 11738,
+            "MaintenanceDB": "defaultdb",
+            "Username": "avnadmin",
+            "SSLMode": "require"
+        }
+    }
+}

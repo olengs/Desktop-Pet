@@ -7,12 +7,8 @@ import signal
 
 import grpc
 
-try:
-    from generated import garena_pet_pb2_grpc as rpc
-    from pet_grpc_service import GarenaPetGrpcService
-except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
-    from GarenaAI.generated import garena_pet_pb2_grpc as rpc
-    from GarenaAI.pet_grpc_service import GarenaPetGrpcService
+from generated import garena_pet_pb2_grpc as rpc
+from pet_grpc_service import GarenaPetGrpcService
 
 logger = logging.getLogger(__name__)
 DEFAULT_BIND_ADDR = "127.0.0.1:50051"

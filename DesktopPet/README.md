@@ -16,9 +16,9 @@ Cross-platform Qt/QML desktop pet prototype for the hackathon MVP. The core app 
   - direct WAV voice send through `SendVoice`
   - direct receive through `PullMessages`
   - streaming receive through `SubscribeMessages`
-  - fake gameplay events through `SendGameEvent`
 - Text and audio replies from the backend.
-- Offline fallback memory, so the pet can still demo behavior before the backend is running.
+- Offline conversational fallback, so the pet can still respond before the backend is running.
+- Conversation-only desktop behavior; game data is not sent or simulated by the desktop pet.
 
 ## Project Layout
 
@@ -111,9 +111,8 @@ $env:GARENA_PET_GRPC_TARGET="127.0.0.1:50051"
 .\bin\GarenaPet.exe
 ```
 
-See [docs/python-ai-backend.md](docs/python-ai-backend.md) for the Python gRPC integration skeleton.
-See [docs/pet-art.md](docs/pet-art.md) for compact mode and custom sprite sheet setup.
-See [docs/team-handoff.md](docs/team-handoff.md) for the full team handoff.
+See [../docs/garena-ai-desktop-pet-handoff.md](../docs/garena-ai-desktop-pet-handoff.md) for the Python gRPC integration and full team handoff.
+See [What Is Built](#what-is-built) and [Project Layout](#project-layout) for compact mode and sprite component notes.
 
 On macOS, the plain `bin/GarenaPet` executable embeds `NSMicrophoneUsageDescription` at link time. Keep the Apple-specific plist/linker block in `CMakeLists.txt`; without it, Qt cannot load the `QMicrophonePermission` backend for microphone access.
 
@@ -124,20 +123,19 @@ The shared protobuf contract lives in [proto/garena_pet.proto](proto/garena_pet.
 ```proto
 service GarenaPetService {
   rpc SendText(TextRequest) returns (PetResponse);
-  rpc SendVoice(VoiceRequest) returns (PetResponse);
-  rpc SendGameEvent(GameEventRequest) returns (GameEventReply);
+  rpc SendVoice(VoiceRequest) returns (stream PetResponse);
   rpc PullMessages(PullMessagesRequest) returns (MessageBatch);
   rpc SubscribeMessages(SubscribeRequest) returns (stream PetServerMessage);
 }
 ```
 
-`SendVoice` sends completed WAV bytes. Backend responses and streamed messages may include `AudioPayload` bytes plus a MIME type such as `audio/wav` or `audio/mpeg`.
+`SendVoice` sends completed WAV bytes. The backend streams a transcript response first, then streams the final chat reply after AI generation. Backend responses and streamed messages may include `AudioPayload` bytes plus a MIME type such as `audio/wav` or `audio/mpeg`.
 
 ## Demo Flow
 
 1. Launch `GarenaPet`.
 2. Drag Mimo to the corner of the screen.
-3. Click the chat icon and ask: `How am I playing?`
+3. Click the chat icon and ask: `How are you?`
 4. Hold `Hold` to send a push-to-talk voice note.
 5. Click the settings icon to switch between `Push` and `Listen`, tune voice sensitivity, or click `Pull` for pending backend messages.
 6. Click `Stream` to connect the gRPC receive stream.

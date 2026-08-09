@@ -35,9 +35,43 @@ Use `.env` only for secrets:
 ```text
 OPENAI_API_KEY=...
 FISH_AUDIO_API_KEY=...
+GARENA_DB_PASSWORD=...
 ```
 
-Use `.config` for non-secret runtime settings such as OpenAI model choices, response token budget, Fish TTS format, and local debug toggles.
+Use `.config` for non-secret runtime settings such as OpenAI model choices, response token budget, Fish TTS format, local debug toggles, and PostgreSQL host/user/database settings.
+
+## PostgreSQL Connection
+
+The AI service loads PostgreSQL settings from `.config` and reads the database password from `.env`. To test the connection without touching `main.py`, run:
+
+```bash
+python -m GarenaAI.test_db_connection
+```
+
+`pgConnect.json` is still supported as a fallback, but new non-secret DB settings should live in `.config`.
+
+Before using persistent memory, create the tables:
+
+```bash
+python -m GarenaAI.initialize_db
+```
+
+This runs [initializedb.sql](initializedb.sql) through the same psycopg3 connection settings as the AI service.
+
+To remove the AI chat tables during cleanup, run [destroydb.sql](destroydb.sql) with any Postgres SQL client connected to the same database. It also drops old prototype game/memory tables if they exist.
+
+## Memory Settings
+
+The desktop pet uses database-backed recent chat context when `GARENA_MEMORY_ENABLED=1`. These `.config` values control how much stored conversation is sent to the OpenAI model:
+
+```text
+GARENA_MEMORY_ENABLED=1
+GARENA_MEMORY_SAVE_CHAT_HISTORY=1
+GARENA_MEMORY_MAX_CHAT_MESSAGES=8
+GARENA_MEMORY_MAX_CONTEXT_CHARS=6000
+```
+
+Lower `GARENA_MEMORY_MAX_CHAT_MESSAGES` to reduce input token cost. The active schema only creates `ai_users` and `ai_chat_messages`; the desktop gRPC contract carries conversation data only.
 
 ## Optional Audio Replies
 
@@ -49,7 +83,9 @@ GARENA_PET_GRPC_TTS=1
 
 TTS also requires `FISH_AUDIO_API_KEY`.
 
-For this MVP, text and audio are returned together in the same gRPC response. This can make the reply wait for TTS, but it is more reliable for the demo because it does not require the desktop stream receiver to be connected before audio can arrive. The desktop client allows up to 25 seconds for these text-plus-audio replies.
+TTS is currently off by default with `GARENA_PET_GRPC_TTS=0`, so the desktop pet receives text replies without waiting for speech synthesis.
+
+For voice messages, `SendVoice` streams a transcript response as soon as STT finishes, then streams the final text/audio reply after AI generation. Text messages still use a single `SendText` response. The desktop client allows up to 25 seconds for each gRPC request.
 
 ## Save Incoming WAV Files
 

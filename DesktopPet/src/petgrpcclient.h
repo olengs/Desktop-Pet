@@ -3,7 +3,6 @@
 #include <QByteArray>
 #include <QObject>
 #include <QString>
-#include <QStringList>
 
 #include <atomic>
 #include <memory>
@@ -20,14 +19,6 @@ class PetGrpcClient : public QObject
     Q_OBJECT
 
 public:
-    struct TraitSnapshot {
-        int teamwork = 0;
-        int aggression = 0;
-        int loyalty = 0;
-        int leadership = 0;
-        int riskTaking = 0;
-    };
-
     explicit PetGrpcClient(QObject *parent = nullptr);
     ~PetGrpcClient() override;
 
@@ -40,24 +31,13 @@ public:
 
     void sendText(
         const QString &playerId,
-        const QString &message,
-        const QStringList &memoryContext,
-        const TraitSnapshot &traits);
+        const QString &message);
 
     void sendVoice(
         const QString &playerId,
         const QByteArray &wavData,
         int durationMs,
-        const QString &mode,
-        const QStringList &memoryContext,
-        const TraitSnapshot &traits);
-
-    void sendGameEvent(
-        const QString &playerId,
-        const QString &game,
-        const QString &eventType,
-        const QString &summary,
-        const TraitSnapshot &impact);
+        const QString &mode);
 
     void pullMessages(const QString &playerId, int maxMessages = 10);
     void connectMessageStream(const QString &playerId);
@@ -69,6 +49,7 @@ signals:
         const QString &mood,
         const QByteArray &audio,
         const QString &audioMimeType);
+    void voiceTranscriptReceived(const QString &transcript);
     void voiceReplyReceived(
         const QString &transcript,
         const QString &reply,
@@ -80,10 +61,8 @@ signals:
         const QString &mood,
         const QByteArray &audio,
         const QString &audioMimeType);
-    void gameEventAccepted(const QString &summary, const QString &mood);
     void textRequestFailed(const QString &message, const QString &error);
     void voiceRequestFailed(const QString &error);
-    void gameEventRequestFailed(const QString &summary, const QString &error);
     void pullMessagesFinished(int count);
     void pullMessagesFailed(const QString &error);
     void streamConnectedChanged(bool connected);

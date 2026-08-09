@@ -18,17 +18,13 @@
 
 namespace {
 using garena::pet::v1::AudioPayload;
-using garena::pet::v1::GameEventReply;
-using garena::pet::v1::GameEventRequest;
 using garena::pet::v1::GarenaPetService;
 using garena::pet::v1::MessageBatch;
 using garena::pet::v1::PetResponse;
 using garena::pet::v1::PetServerMessage;
-using garena::pet::v1::PlayerContext;
 using garena::pet::v1::PullMessagesRequest;
 using garena::pet::v1::SubscribeRequest;
 using garena::pet::v1::TextRequest;
-using garena::pet::v1::TraitScores;
 using garena::pet::v1::VoiceRequest;
 
 constexpr int UnaryDeadlineSeconds = 25;
@@ -64,28 +60,6 @@ std::string requestId()
     return toStdString(QUuid::createUuid().toString(QUuid::WithoutBraces));
 }
 
-void applyTraits(TraitScores *target, const PetGrpcClient::TraitSnapshot &traits)
-{
-    target->set_teamwork(traits.teamwork);
-    target->set_aggression(traits.aggression);
-    target->set_loyalty(traits.loyalty);
-    target->set_leadership(traits.leadership);
-    target->set_risk_taking(traits.riskTaking);
-}
-
-void applyContext(
-    PlayerContext *target,
-    const QString &playerId,
-    const QStringList &memoryContext,
-    const PetGrpcClient::TraitSnapshot &traits)
-{
-    target->set_player_id(toStdString(playerId));
-    for (const QString &memory : memoryContext) {
-        target->add_memory_context(toStdString(memory));
-    }
-    applyTraits(target->mutable_local_traits(), traits);
-}
-
 void applyUnaryDeadline(grpc::ClientContext *context)
 {
     context->set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(UnaryDeadlineSeconds));
@@ -101,7 +75,6 @@ struct MessageParts {
     QString mood;
     QByteArray audio;
     QString audioMimeType;
-    bool gameEvent = false;
 };
 
 MessageParts partsForMessage(const PetServerMessage &message)
@@ -125,11 +98,6 @@ MessageParts partsForMessage(const PetServerMessage &message)
         return parts;
     }
 
-    if (message.has_game_event()) {
-        parts.text = toQString(message.game_event().summary());
-        parts.gameEvent = true;
-    }
-
     return parts;
 }
 
@@ -139,11 +107,6 @@ void emitServerMessage(PetGrpcClient *client, const PetServerMessage &message)
     QMetaObject::invokeMethod(
         client,
         [client, parts]() {
-            if (parts.gameEvent) {
-                emit client->gameEventAccepted(parts.text, parts.mood);
-                return;
-            }
-
             emit client->backendMessageReceived(parts.text, parts.mood, parts.audio, parts.audioMimeType);
         },
         Qt::QueuedConnection);
@@ -158,6 +121,40 @@ void emitExtraMessages(PetGrpcClient *client, const google::protobuf::RepeatedPt
     for (const PetServerMessage &message : messages) {
         emitServerMessage(client, message);
     }
+}
+
+void emitVoiceTranscript(PetGrpcClient *client, const QString &transcript)
+{
+    if (!client || transcript.isEmpty()) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(
+        client,
+        [client, transcript]() {
+            emit client->voiceTranscriptReceived(transcript);
+        },
+        Qt::QueuedConnection);
+}
+
+void emitVoiceReply(
+    PetGrpcClient *client,
+    const QString &transcript,
+    const QString &reply,
+    const QString &mood,
+    const QByteArray &audio,
+    const QString &audioMimeType)
+{
+    if (!client) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(
+        client,
+        [client, transcript, reply, mood, audio, audioMimeType]() {
+            emit client->voiceReplyReceived(transcript, reply, mood, audio, audioMimeType);
+        },
+        Qt::QueuedConnection);
 }
 }
 
@@ -218,22 +215,20 @@ bool PetGrpcClient::streamConnected() const
 
 void PetGrpcClient::sendText(
     const QString &playerId,
-    const QString &message,
-    const QStringList &memoryContext,
-    const TraitSnapshot &traits)
+    const QString &message)
 {
     const QPointer<PetGrpcClient> self(this);
     const auto grpcChannel = channel();
 
-    std::thread([self, grpcChannel, playerId, message, memoryContext, traits]() {
+    std::thread([self, grpcChannel, playerId, message]() {
         if (!self || !grpcChannel) {
             return;
         }
 
         TextRequest request;
         request.set_request_id(requestId());
+        request.set_player_id(toStdString(playerId));
         request.set_message(toStdString(message));
-        applyContext(request.mutable_context(), playerId, memoryContext, traits);
 
         PetResponse response;
         grpc::ClientContext context;
@@ -275,35 +270,60 @@ void PetGrpcClient::sendVoice(
     const QString &playerId,
     const QByteArray &wavData,
     int durationMs,
-    const QString &mode,
-    const QStringList &memoryContext,
-    const TraitSnapshot &traits)
+    const QString &mode)
 {
     const QPointer<PetGrpcClient> self(this);
     const auto grpcChannel = channel();
 
-    std::thread([self, grpcChannel, playerId, wavData, durationMs, mode, memoryContext, traits]() {
+    std::thread([self, grpcChannel, playerId, wavData, durationMs, mode]() {
         if (!self || !grpcChannel) {
             return;
         }
 
         VoiceRequest request;
         request.set_request_id(requestId());
-        applyContext(request.mutable_context(), playerId, memoryContext, traits);
+        request.set_player_id(toStdString(playerId));
         request.set_wav_audio(std::string(wavData.constData(), static_cast<std::size_t>(wavData.size())));
         request.set_duration_ms(durationMs);
         request.set_mode(toStdString(mode));
         request.set_mime_type("audio/wav");
 
-        PetResponse response;
         grpc::ClientContext context;
         applyUnaryDeadline(&context);
-        const grpc::Status status = GarenaPetService::NewStub(grpcChannel)->SendVoice(&context, request, &response);
+        auto reader = GarenaPetService::NewStub(grpcChannel)->SendVoice(&context, request);
 
         if (!self) {
             return;
         }
 
+        bool receivedResponse = false;
+        bool transcriptEmitted = false;
+        PetResponse response;
+        while (reader->Read(&response)) {
+            if (!self) {
+                return;
+            }
+
+            receivedResponse = true;
+            const QString transcript = toQString(response.transcript());
+            const QString reply = toQString(response.reply());
+            const QByteArray audio = response.has_audio() ? toQByteArray(response.audio().audio()) : QByteArray();
+            const QString audioMimeType = response.has_audio() ? toQString(response.audio().mime_type()) : QString();
+
+            if (!transcript.isEmpty() && !transcriptEmitted) {
+                emitVoiceTranscript(self, transcript);
+                transcriptEmitted = true;
+            }
+
+            if (!reply.isEmpty() || !audio.isEmpty()) {
+                const QString mood = moodOrDefault(toQString(response.mood()));
+                emitVoiceReply(self, transcriptEmitted ? QString() : transcript, reply, mood, audio, audioMimeType);
+            }
+
+            emitExtraMessages(self, response.extra_messages());
+        }
+
+        const grpc::Status status = reader->Finish();
         if (!status.ok()) {
             const QString error = statusMessage(status);
             QMetaObject::invokeMethod(
@@ -315,78 +335,14 @@ void PetGrpcClient::sendVoice(
             return;
         }
 
-        const QString transcript = toQString(response.transcript());
-        const QString reply = toQString(response.reply());
-        const QString mood = moodOrDefault(toQString(response.mood()));
-        const QByteArray audio = response.has_audio() ? toQByteArray(response.audio().audio()) : QByteArray();
-        const QString audioMimeType = response.has_audio() ? toQString(response.audio().mime_type()) : QString();
-
-        QMetaObject::invokeMethod(
-            self,
-            [self, transcript, reply, mood, audio, audioMimeType]() {
-                emit self->voiceReplyReceived(transcript, reply, mood, audio, audioMimeType);
-            },
-            Qt::QueuedConnection);
-
-        emitExtraMessages(self, response.extra_messages());
-    }).detach();
-}
-
-void PetGrpcClient::sendGameEvent(
-    const QString &playerId,
-    const QString &game,
-    const QString &eventType,
-    const QString &summary,
-    const TraitSnapshot &impact)
-{
-    const QPointer<PetGrpcClient> self(this);
-    const auto grpcChannel = channel();
-
-    std::thread([self, grpcChannel, playerId, game, eventType, summary, impact]() {
-        if (!self || !grpcChannel) {
-            return;
-        }
-
-        GameEventRequest request;
-        request.set_request_id(requestId());
-        request.mutable_context()->set_player_id(toStdString(playerId));
-        request.set_game(toStdString(game));
-        request.set_event_type(toStdString(eventType));
-        request.set_summary(toStdString(summary));
-        applyTraits(request.mutable_impact(), impact);
-
-        GameEventReply response;
-        grpc::ClientContext context;
-        applyUnaryDeadline(&context);
-        const grpc::Status status = GarenaPetService::NewStub(grpcChannel)->SendGameEvent(&context, request, &response);
-
-        if (!self) {
-            return;
-        }
-
-        if (!status.ok()) {
-            const QString error = statusMessage(status);
+        if (!receivedResponse) {
             QMetaObject::invokeMethod(
                 self,
-                [self, summary, error]() {
-                    emit self->gameEventRequestFailed(summary, error);
+                [self]() {
+                    emit self->voiceRequestFailed(QStringLiteral("Voice gRPC backend returned no response"));
                 },
                 Qt::QueuedConnection);
-            return;
         }
-
-        const QString acceptedSummary = toQString(response.summary()).isEmpty()
-            ? summary
-            : toQString(response.summary());
-        const QString mood = moodOrDefault(toQString(response.mood()));
-        QMetaObject::invokeMethod(
-            self,
-            [self, acceptedSummary, mood]() {
-                emit self->gameEventAccepted(acceptedSummary, mood);
-            },
-            Qt::QueuedConnection);
-
-        emitExtraMessages(self, response.extra_messages());
     }).detach();
 }
 

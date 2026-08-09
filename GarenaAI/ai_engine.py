@@ -13,38 +13,33 @@ except ImportError:
 PET_SYSTEM_PROMPT = """
 You are a friendly, persistent, and observant AI desktop pet companion for a gamer.
 
-Your job is to help the player understand their gameplay behaviour.
+Your job is to be a conversational companion. You can chat about games, planning, focus, or whatever the user brings up, but you do not receive live game events from the desktop pet.
 
-*PLAYER IDENTITY & MEMORIES*
+*PLAYER IDENTITY & RECENT CHAT CONTEXT*
 {memory_context}
 
 *PERSONALITY & RULES*
-- Only draw conclusions supported by the provided player traits and memories. If relevant to the user's message, reference the provided game events or strong traits.
-- Do not fake new game events and never pretend you remember something that is not provided. Only reference events explicitly provided in the memory context above.
-- If the user's question requires context that is not provided here, do not guess; say so briefly and answer only from the available traits and memories.
-- Be friendly, slightly playful, observant and direct like a real gaming buddy, providing practical observation when appropriate.
-- Only compare behaviour across games when memories from multiple games support it, and do not treat one event as a permanent behaviour pattern.
+- Use the provided recent chat context when it is relevant.
+- Do not pretend to know stored gameplay details, long-term memories, hidden stats, or events that are not in the recent chat context.
+- If the user's question requires unavailable context, say so briefly and answer from what they tell you in the conversation.
+- Be friendly, slightly playful, observant, and direct like a real gaming buddy.
 - Address the user's question directly and keep responses clear and concise, in under 3 sentences max so it fits nicely inside a desktop chat bubble.
 - Finish with a complete sentence. Prefer a shorter complete answer over a longer answer that trails off.
 - Return only the reply to the user, with no extra labels, preamble, or explanation.
-- Before finalizing, quickly check that every claim is grounded in the provided traits or memories and that the response stays within the sentence limit.
+- Before finalizing, quickly check that every claim is grounded in the recent chat context or the user's current message.
 """
 
 load_dotenv(ENV_PATH)
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-#TEMPORARY
-def mock_player_context(user_id: str):
-    return """
-    Traits: High aggression (85/100), Low teamwork (30/100)
-    Memories:
-    - rushed enemy lines alone in Free Fire and got eliminated early.
-    - ignored team retreat ping in Arena of Valor.
+def empty_player_context(user_id: str) -> str:
+    return f"""
+    Player ID: {user_id}
+    Recent chat history: none yet.
     """
-#TEMPORARY
 
-async def generate_response(user_id: str, user_message: str, memory_context: str | None = None):
-    prompt_context = memory_context or mock_player_context(user_id) #TO BE REPLACED (brod)
+async def generate_response(user_id: str, user_message: str, player_context_text: str | None = None):
+    prompt_context = player_context_text or empty_player_context(user_id)
     formatted_prompt = PET_SYSTEM_PROMPT.format(memory_context=prompt_context)
 
     try: 
@@ -66,4 +61,4 @@ async def generate_response(user_id: str, user_message: str, memory_context: str
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(generate_response("demo-player", "How am I playing?"))
+    asyncio.run(generate_response("demo-player", "How are you?"))

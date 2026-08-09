@@ -50,7 +50,7 @@ Window {
     }
 
     Component.onCompleted: {
-        addMessage("pet", "I am Mimo. I can chat, remember your demo matches, and listen when you want to talk.")
+        addMessage("pet", "I am Mimo. I can chat and listen when you want to talk.")
     }
 
     ListModel {
@@ -151,16 +151,11 @@ Window {
         }
 
         function onVoiceTranscriptReceived(transcript) {
-            root.addMessage("user", "Voice: " + transcript)
-        }
-
-        function onEventAccepted(summary, mood) {
-            root.addMessage("memory", summary)
-            root.pulseMood(mood)
+            root.addMessage("user", transcript)
         }
 
         function onChatError(message) {
-            root.addMessage("memory", message)
+            root.addMessage("system", message)
             root.pulseMood("annoyed")
         }
     }
@@ -169,7 +164,7 @@ Window {
         target: root.voice
 
         function onVoiceError(message) {
-            root.addMessage("memory", message)
+            root.addMessage("system", message)
             root.pulseMood("annoyed")
         }
 
