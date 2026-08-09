@@ -279,6 +279,11 @@ void BackendClient::handleBackendMessage(
     const QByteArray &audio,
     const QString &audioMimeType)
 {
+    if (text == QStringLiteral("Mimo receive stream is alive.") && audio.isEmpty()) {
+        setOnline(true);
+        return;
+    }
+
     setOnline(true);
     setStatusText(QStringLiteral("gRPC backend message received"));
 

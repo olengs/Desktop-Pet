@@ -104,6 +104,10 @@ class GarenaPetGrpcService(rpc.GarenaPetServiceServicer):
         self._config = config or GrpcServiceConfig()
         self._memory = memory_repository or MemoryRepository(self._config.memory)
 
+    @property
+    def hub(self) -> PlayerMessageHub:
+        return self._hub
+
     def close(self) -> None:
         self._memory.close()
 

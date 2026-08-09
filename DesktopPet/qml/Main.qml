@@ -51,6 +51,7 @@ Window {
 
     Component.onCompleted: {
         addMessage("pet", "I am Mimo. I can chat and listen when you want to talk.")
+        root.backend.connectMessageStream()
     }
 
     ListModel {

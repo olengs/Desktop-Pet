@@ -89,6 +89,18 @@ Fish TTS accepts up to 500 characters per request. GarenaAI normalizes and clamp
 
 For voice messages, `SendVoice` streams a transcript response as soon as STT finishes, then streams the final text/audio reply after AI generation. Text messages still use a single `SendText` response. The desktop client allows up to 25 seconds for each gRPC request.
 
+## Death Recap Feedback
+
+GarenaAI also exposes an HTTP telemetry endpoint on `127.0.0.1:8001`:
+
+```bash
+curl -X POST http://127.0.0.1:8001/death-recap \
+  -H "Content-Type: application/json" \
+  -d "@sample_death_recap_2.json"
+```
+
+After feedback is generated, the HTTP handler publishes it through the desktop gRPC receive stream. If `GARENA_PET_GRPC_TTS=1` and Fish TTS returns audio, the pushed message includes an `AudioPayload` so DesktopPet displays and speaks the feedback. The message is sent to the recap `user_id` and to `GARENA_DEATH_RECAP_PUSH_PLAYER_ID`, which defaults to `demo-player` for the local desktop demo.
+
 ## Save Incoming WAV Files
 
 To save every WAV clip received from the desktop pet's `SendVoice` call into the repo root `test/` folder, set:

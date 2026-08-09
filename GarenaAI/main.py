@@ -11,12 +11,12 @@ import uvicorn
 try:
     from db import close_open_connections
     from generated import garena_pet_pb2_grpc as rpc
-    from http_api import app as http_app
+    from http_api import app as http_app, configure_message_delivery
     from pet_grpc_service import GarenaPetGrpcService
 except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
     from GarenaAI.db import close_open_connections
     from GarenaAI.generated import garena_pet_pb2_grpc as rpc
-    from GarenaAI.http_api import app as http_app
+    from GarenaAI.http_api import app as http_app, configure_message_delivery
     from GarenaAI.pet_grpc_service import GarenaPetGrpcService
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,7 @@ def _split_host_port(bind_addr: str) -> tuple[str, int]:
 
 async def serve(bind_addr: str | None = None, http_bind_addr: str | None = None) -> None:
     service = GarenaPetGrpcService()
+    configure_message_delivery(service.hub)
     server = await start_server(bind_addr, service)
 
     http_host, http_port = _split_host_port(
