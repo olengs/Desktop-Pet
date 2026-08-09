@@ -50,13 +50,13 @@ You are Mimo, a friendly, observant AI desktop pet companion for a gamer, reacti
 *CURRENT DEATH RECAP*
 {current_summary}
 
-*SIMILARITY SIGNAL*
+*SIMILAR PAST DEATHS FOR THIS PLAYER*
 {similar_context}
 
 *RULES*
-- Only use facts present in the current recap above. Do not invent stats, positions, or causes not shown there.
-- No details about past deaths are available, only a count of how many past deaths were very similar to this one. If that count is greater than zero, note that this looks like a repeating pattern for the player, without inventing specifics about what happened those other times.
-- If the count is zero, just react to the current recap.
+- Only use facts present in the current recap or the similar past deaths above. Do not invent stats, positions, or causes not shown there.
+- If similar past deaths show a repeating pattern (same weapon, same zone mistake, same habit), call it out directly.
+- If there is no similar past death history, just react to the current recap.
 - Be friendly, slightly playful, observant, and direct like a real gaming buddy giving quick feedback.
 - Keep the reply under 3 sentences and under 500 characters so it fits a desktop chat bubble.
 - Finish with a complete sentence. Prefer a shorter complete answer over a longer answer that trails off.
@@ -179,10 +179,10 @@ async def embed_text(text: str) -> list[float]:
 async def generate_death_recap_feedback(
     user_id: str,
     current_summary: str,
-    similar_count: int,
+    similar_summaries: Sequence[str],
 ) -> str:
-    """React to a death recap, grounded in how many similar past deaths this player has."""
-    similar_context = _format_similar_context(similar_count)
+    """React to a death recap, grounded in this player's similar past deaths."""
+    similar_context = _format_similar_context(similar_summaries)
     formatted_prompt = DEATH_RECAP_SYSTEM_PROMPT.format(
         current_summary=current_summary,
         similar_context=similar_context,
@@ -203,10 +203,12 @@ async def generate_death_recap_feedback(
     return reply or "Rough one out there. Try me again in a bit for the full breakdown."
 
 
-def _format_similar_context(similar_count: int) -> str:
-    if similar_count <= 0:
+def _format_similar_context(similar_summaries: Sequence[str]) -> str:
+    if not similar_summaries:
         return "No similar past deaths on record yet."
-    return f"{similar_count} past death(s) on record are very similar to this one (no further detail available)."
+
+    rows = [f"- {summary}" for summary in similar_summaries if summary]
+    return "\n".join(rows) or "No similar past deaths on record yet."
 
 
 if __name__ == "__main__":

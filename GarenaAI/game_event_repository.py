@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pgvector import Vector
 from pgvector.psycopg import register_vector
+from psycopg.types.json import Jsonb
 
 try:
     from db import get_connection
@@ -34,7 +35,8 @@ class GameEventRepository:
         game_id: UUID,
         embedding: Sequence[float],
         limit: int = 5,
-    ) -> list[UUID]:
+    ) -> list[str]:
+        """Return flattened event summaries for this player's most similar past recaps."""
         conn = get_connection()
         try:
             register_vector(conn)
@@ -42,7 +44,7 @@ class GameEventRepository:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT id
+                        SELECT events
                         FROM user_game_data
                         WHERE user_id = %s AND game_id = %s
                         ORDER BY game_data <=> %s
@@ -50,7 +52,7 @@ class GameEventRepository:
                         """,
                         (user_id, game_id, Vector(embedding), limit),
                     )
-                    return [row["id"] for row in cur.fetchall()]
+                    return [self.summarize_events(row["events"]) for row in cur.fetchall()]
         finally:
             conn.close()
 
@@ -58,6 +60,7 @@ class GameEventRepository:
         self,
         user_id: UUID,
         game_id: UUID,
+        events: Sequence[Mapping[str, Any]],
         embedding: Sequence[float],
     ) -> UUID:
         conn = get_connection()
@@ -68,10 +71,10 @@ class GameEventRepository:
                     row_id = uuid.uuid4()
                     cur.execute(
                         """
-                        INSERT INTO user_game_data (id, user_id, game_id, game_data)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO user_game_data (id, user_id, game_id, events, game_data)
+                        VALUES (%s, %s, %s, %s, %s)
                         """,
-                        (row_id, user_id, game_id, Vector(embedding)),
+                        (row_id, user_id, game_id, Jsonb(list(events)), Vector(embedding)),
                     )
             return row_id
         finally:

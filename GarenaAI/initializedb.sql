@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS user_game_data (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES ai_users(user_id),
   game_id UUID NOT NULL REFERENCES game(game_id),
-  game_data VECTOR NOT NULL
+  events JSONB NOT NULL,
+  game_data VECTOR(1536) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS user_game_data_embedding_idx

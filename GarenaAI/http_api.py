@@ -53,22 +53,22 @@ async def report_death_recap(payload: DeathRecapRequest) -> DeathRecapResponse:
     except Exception:
         logger.exception("death recap embedding failed for user_id=%s", payload.user_id)
 
-    similar_ids: list[Any] = []
+    similar_summaries: list[str] = []
     if embedding is not None and user_id is not None:
         try:
-            similar_ids = await asyncio.to_thread(_repo.find_similar, user_id, game_id, embedding)
+            similar_summaries = await asyncio.to_thread(_repo.find_similar, user_id, game_id, embedding)
         except Exception:
             logger.exception("death recap similarity lookup failed for user_id=%s", payload.user_id)
 
-    feedback = await generate_death_recap_feedback(payload.user_id, event_summary, len(similar_ids))
+    feedback = await generate_death_recap_feedback(payload.user_id, event_summary, similar_summaries)
 
     if embedding is not None and user_id is not None:
         try:
-            await asyncio.to_thread(_repo.save_recap, user_id, game_id, embedding)
+            await asyncio.to_thread(_repo.save_recap, user_id, game_id, payload.events, embedding)
         except Exception:
             logger.exception("death recap save failed for user_id=%s", payload.user_id)
 
     return DeathRecapResponse(
         feedback=feedback,
-        similar_recaps_used=len(similar_ids),
+        similar_recaps_used=len(similar_summaries),
     )
