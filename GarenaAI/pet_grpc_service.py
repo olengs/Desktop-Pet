@@ -16,14 +16,14 @@ import grpc
 
 try:
     from config import config_bool, config_float, config_value
-    from ai_engine import client, generate_response
+    from ai_engine import client, generate_response, summarize_chat_memory
     from audio_services import speech_to_text, text_to_speech, text_to_speech_mime_type
     from generated import garena_pet_pb2 as pb
     from generated import garena_pet_pb2_grpc as rpc
     from memory_repository import MemoryRepository, MemorySettings
 except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
     from GarenaAI.config import config_bool, config_float, config_value
-    from GarenaAI.ai_engine import client, generate_response
+    from GarenaAI.ai_engine import client, generate_response, summarize_chat_memory
     from GarenaAI.audio_services import speech_to_text, text_to_speech, text_to_speech_mime_type
     from GarenaAI.generated import garena_pet_pb2 as pb
     from GarenaAI.generated import garena_pet_pb2_grpc as rpc
@@ -246,6 +246,29 @@ class GarenaPetGrpcService(rpc.GarenaPetServiceServicer):
             assistant_reply,
             source,
             request_id,
+        )
+        await self._maybe_summarize_chat_history(player_id)
+
+    async def _maybe_summarize_chat_history(self, player_id: str) -> None:
+        batch = await self._run_memory_op(
+            "load pending summary batch",
+            self._memory.pending_summary_batch,
+            player_id,
+        )
+        if batch is None:
+            return
+
+        summary = await summarize_chat_memory(batch.existing_summary, batch.chat_messages)
+        if not summary:
+            logger.warning("skipping chat summary save because summarization returned no content")
+            return
+
+        await self._run_memory_op(
+            "save chat summary",
+            self._memory.save_chat_summary,
+            player_id,
+            summary,
+            batch.message_ids,
         )
 
     async def _run_memory_op(self, label: str, func, *args):
