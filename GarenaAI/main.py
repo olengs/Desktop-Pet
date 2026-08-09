@@ -20,10 +20,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_BIND_ADDR = "127.0.0.1:50051"
 
 
-async def start_server(bind_addr: str | None = None) -> grpc.aio.Server:
+async def start_server(
+    bind_addr: str | None = None,
+    service: GarenaPetGrpcService | None = None,
+) -> grpc.aio.Server:
     target = bind_addr or os.getenv("GARENA_PET_GRPC_BIND", DEFAULT_BIND_ADDR)
     server = grpc.aio.server()
-    rpc.add_GarenaPetServiceServicer_to_server(GarenaPetGrpcService(), server)
+    rpc.add_GarenaPetServiceServicer_to_server(service or GarenaPetGrpcService(), server)
     port = server.add_insecure_port(target)
     if port == 0:
         raise RuntimeError(f"could not bind Garena pet gRPC server to {target}")
@@ -34,7 +37,8 @@ async def start_server(bind_addr: str | None = None) -> grpc.aio.Server:
 
 
 async def serve(bind_addr: str | None = None) -> None:
-    server = await start_server(bind_addr)
+    service = GarenaPetGrpcService()
+    server = await start_server(bind_addr, service)
     loop = asyncio.get_running_loop()
     shutdown_requested = asyncio.Event()
     registered_signals: list[signal.Signals] = []
@@ -71,7 +75,10 @@ async def serve(bind_addr: str | None = None) -> None:
             if not task.done():
                 task.cancel()
         await asyncio.gather(wait_task, shutdown_task, return_exceptions=True)
-        close_open_connections()
+        try:
+            service.close()
+        finally:
+            close_open_connections()
 
 
 def main() -> None:
