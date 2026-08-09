@@ -31,18 +31,20 @@ BackendClient::BackendClient(QObject *parent)
         });
 
     connect(&m_grpc, &PetGrpcClient::textReplyReceived, this, &BackendClient::handleTextReply);
+    connect(&m_grpc, &PetGrpcClient::voiceTranscriptReceived, this, [this](const QString &transcript) {
+        if (transcript.isEmpty()) {
+            return;
+        }
+        setOnline(true);
+        setStatusText(QStringLiteral("Voice transcript received"));
+        emit voiceTranscriptReceived(transcript);
+    });
     connect(&m_grpc, &PetGrpcClient::voiceReplyReceived, this, &BackendClient::handleVoiceReply);
     connect(&m_grpc, &PetGrpcClient::backendMessageReceived, this, &BackendClient::handleBackendMessage);
 
-    connect(&m_grpc, &PetGrpcClient::gameEventAccepted, this, [this](const QString &summary, const QString &mood) {
-        setOnline(true);
-        setStatusText(QStringLiteral("Event saved to gRPC backend"));
-        emit eventAccepted(summary, moodOrDefault(mood));
-    });
-
     connect(&m_grpc, &PetGrpcClient::textRequestFailed, this, [this](const QString &message, const QString &) {
         setOnline(false);
-        setStatusText(QStringLiteral("gRPC backend unavailable; using local demo memory"));
+        setStatusText(QStringLiteral("gRPC backend unavailable; using local chat fallback"));
         emit replyReceived(fallbackReplyFor(message), QStringLiteral("thinking"));
     });
 
@@ -52,11 +54,6 @@ BackendClient::BackendClient(QObject *parent)
         emit replyReceived(
             QStringLiteral("I received the voice note, but my speech-to-text backend is not awake yet. Type it for me while we wire up the Python side."),
             QStringLiteral("thinking"));
-    });
-
-    connect(&m_grpc, &PetGrpcClient::gameEventRequestFailed, this, [this](const QString &, const QString &) {
-        setOnline(false);
-        setStatusText(QStringLiteral("gRPC backend unavailable; event kept in local demo memory"));
     });
 
     connect(&m_grpc, &PetGrpcClient::pullMessagesFinished, this, [this](int count) {
@@ -142,7 +139,7 @@ void BackendClient::sendMessage(const QString &message)
     }
 
     setStatusText(QStringLiteral("Sending text over gRPC..."));
-    m_grpc.sendText(m_playerId, trimmed, memoryContext(), traitSnapshot());
+    m_grpc.sendText(m_playerId, trimmed);
 }
 
 void BackendClient::uploadVoiceRecording(const QByteArray &wavData, int durationMs, const QString &mode)
@@ -153,17 +150,7 @@ void BackendClient::uploadVoiceRecording(const QByteArray &wavData, int duration
     }
 
     setStatusText(QStringLiteral("Sending WAV over gRPC..."));
-    m_grpc.sendVoice(m_playerId, wavData, durationMs, mode, memoryContext(), traitSnapshot());
-}
-
-void BackendClient::sendDemoEvent(const QString &eventType)
-{
-    const DemoEvent event = demoEventFor(eventType);
-    rememberDemoEvent(event);
-    emit eventAccepted(event.summary, event.mood);
-    setStatusText(QStringLiteral("Sending %1 event over gRPC...").arg(event.game));
-
-    m_grpc.sendGameEvent(m_playerId, event.game, event.type, event.summary, impactSnapshot(event));
+    m_grpc.sendVoice(m_playerId, wavData, durationMs, mode);
 }
 
 void BackendClient::pullMessages()
@@ -213,151 +200,30 @@ void BackendClient::setStatusText(const QString &statusText)
     emit statusTextChanged();
 }
 
-BackendClient::DemoEvent BackendClient::demoEventFor(const QString &eventType) const
-{
-    if (eventType == QStringLiteral("ignored_teammate_revive")) {
-        return {
-            QStringLiteral("ignored_teammate_revive"),
-            QStringLiteral("Free Fire"),
-            QStringLiteral("You skipped a teammate revive to chase a fight."),
-            QStringLiteral("annoyed"),
-            -2,
-            1,
-            -1,
-            0,
-            1,
-        };
-    }
-
-    if (eventType == QStringLiteral("revived_teammate")) {
-        return {
-            QStringLiteral("revived_teammate"),
-            QStringLiteral("Free Fire"),
-            QStringLiteral("You crossed open ground to revive a teammate."),
-            QStringLiteral("happy"),
-            2,
-            0,
-            2,
-            1,
-            1,
-        };
-    }
-
-    if (eventType == QStringLiteral("shotcaller_win")) {
-        return {
-            QStringLiteral("shotcaller_win"),
-            QStringLiteral("Arena of Valor"),
-            QStringLiteral("You called the final push and the team closed the match."),
-            QStringLiteral("happy"),
-            1,
-            1,
-            1,
-            3,
-            0,
-        };
-    }
-
-    return {
-        QStringLiteral("rushed_alone"),
-        QStringLiteral("Free Fire"),
-        QStringLiteral("You rushed alone before your squad was ready."),
-        QStringLiteral("thinking"),
-        -1,
-        2,
-        0,
-        0,
-        2,
-    };
-}
-
-void BackendClient::rememberDemoEvent(const DemoEvent &event)
-{
-    m_teamwork += event.teamwork;
-    m_aggression += event.aggression;
-    m_loyalty += event.loyalty;
-    m_leadership += event.leadership;
-    m_riskTaking += event.riskTaking;
-
-    m_memories.prepend(event.summary);
-    while (m_memories.size() > 6) {
-        m_memories.removeLast();
-    }
-}
-
 QString BackendClient::fallbackReplyFor(const QString &message) const
 {
     const QString lower = message.toLower();
-    if (lower.contains(QStringLiteral("how")) && (lower.contains(QStringLiteral("playing")) || lower.contains(QStringLiteral("play")))) {
-        return QStringLiteral("You are playing with sharp instincts. %1 I would pair you with a calm teammate who can keep the squad shape around your pushes.").arg(strongestTraitLine());
-    }
-
-    if (lower.contains(QStringLiteral("team")) || lower.contains(QStringLiteral("friend")) || lower.contains(QStringLiteral("match"))) {
-        return QStringLiteral("For teammates, I would look for someone with steady teamwork and similar play time. Your current profile says: %1").arg(strongestTraitLine());
+    if (lower.contains(QStringLiteral("hello"))
+        || lower == QStringLiteral("hi")
+        || lower.startsWith(QStringLiteral("hi "))
+        || lower.contains(QStringLiteral(" hey"))
+        || lower.startsWith(QStringLiteral("hey"))) {
+        return QStringLiteral("Hey, I am Mimo. My AI backend is offline, but I can still keep you company for a moment.");
     }
 
     if (lower.contains(QStringLiteral("remember")) || lower.contains(QStringLiteral("memory"))) {
-        if (m_memories.isEmpty()) {
-            return QStringLiteral("I do not have match memories yet. Send me a fake event and I will start building your player profile.");
-        }
-        return QStringLiteral("Latest memory: %1").arg(m_memories.first());
+        return QStringLiteral("I do not keep local memories on the desktop pet. When the backend is connected, it handles our chat context.");
     }
 
-    if (lower.contains(QStringLiteral("hello")) || lower.contains(QStringLiteral("hi"))) {
-        return QStringLiteral("Hey, I am awake and parked on your desktop. Send me a demo match event and I will start judging your playstyle gently.");
+    if (lower.contains(QStringLiteral("help")) || lower.contains(QStringLiteral("stuck")) || lower.contains(QStringLiteral("focus"))) {
+        return QStringLiteral("I am in local fallback mode right now, but we can still untangle this. Tell me the smallest next thing you want to figure out.");
     }
 
-    if (m_memories.isEmpty()) {
-        return QStringLiteral("I am in local demo mode right now. Give me a fake game event and I can react with memory-backed banter.");
+    if (lower.contains(QStringLiteral("tired")) || lower.contains(QStringLiteral("stress")) || lower.contains(QStringLiteral("overwhelmed"))) {
+        return QStringLiteral("That sounds like a lot. Take one slow breath with me, then tell me what part is weighing on you most.");
     }
 
-    return QStringLiteral("%1 Also, I remember this: %2").arg(strongestTraitLine(), m_memories.first());
-}
-
-QString BackendClient::strongestTraitLine() const
-{
-    const int aggressiveSignal = m_aggression + m_riskTaking;
-    const int supportSignal = m_teamwork + m_loyalty + m_leadership;
-
-    if (aggressiveSignal >= supportSignal + 2) {
-        return QStringLiteral("Your aggression and risk-taking are trending high.");
-    }
-
-    if (supportSignal >= aggressiveSignal + 2) {
-        return QStringLiteral("Your teamwork and loyalty are becoming your strongest traits.");
-    }
-
-    if (m_leadership >= 3) {
-        return QStringLiteral("Your leadership score is starting to stand out.");
-    }
-
-    return QStringLiteral("Your profile is still balanced, with a slight lean toward bold plays.");
-}
-
-QStringList BackendClient::memoryContext() const
-{
-    return m_memories;
-}
-
-PetGrpcClient::TraitSnapshot BackendClient::traitSnapshot() const
-{
-    return {
-        m_teamwork,
-        m_aggression,
-        m_loyalty,
-        m_leadership,
-        m_riskTaking,
-    };
-}
-
-PetGrpcClient::TraitSnapshot BackendClient::impactSnapshot(const DemoEvent &event) const
-{
-    return {
-        event.teamwork,
-        event.aggression,
-        event.loyalty,
-        event.leadership,
-        event.riskTaking,
-    };
+    return QStringLiteral("My AI backend is not connected right now, but I am here. Tell me what is on your mind, or try again once the backend is running.");
 }
 
 void BackendClient::handleTextReply(

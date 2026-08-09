@@ -129,8 +129,8 @@ Window {
                         implicitHeight: messageText.implicitHeight + verticalPadding
                         height: implicitHeight
                         radius: 16
-                        color: messageDelegate.sender === "user" ? "#1f6feb" : messageDelegate.sender === "memory" ? "#eef6ef" : "#fff3c7"
-                        border.color: messageDelegate.sender === "memory" ? "#cfe3d2" : "transparent"
+                        color: messageDelegate.sender === "user" ? "#1f6feb" : messageDelegate.sender === "system" ? "#fff0f0" : "#fff3c7"
+                        border.color: messageDelegate.sender === "system" ? "#ffd6d2" : "transparent"
                         anchors.right: messageDelegate.sender === "user" ? parent.right : undefined
                         anchors.left: messageDelegate.sender === "user" ? undefined : parent.left
 
@@ -153,19 +153,19 @@ Window {
                 spacing: 8
 
                 Button {
-                    text: "How am I playing?"
+                    text: "How are you?"
                     font.pixelSize: 14
                     onClicked: root.requestSend(text)
                 }
 
                 Button {
-                    text: "What do you remember?"
+                    text: "Give me a pep talk"
                     font.pixelSize: 14
                     onClicked: root.requestSend(text)
                 }
 
                 Button {
-                    text: "Find a teammate"
+                    text: "Help me focus"
                     font.pixelSize: 14
                     onClicked: root.requestSend(text)
                 }

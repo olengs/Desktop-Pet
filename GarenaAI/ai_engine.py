@@ -33,18 +33,15 @@ Your job is to help the player understand their gameplay behaviour.
 load_dotenv(ENV_PATH)
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-#TEMPORARY
-def mock_player_context(user_id: str):
-    return """
-    Traits: High aggression (85/100), Low teamwork (30/100)
-    Memories:
-    - rushed enemy lines alone in Free Fire and got eliminated early.
-    - ignored team retreat ping in Arena of Valor.
+def empty_player_context(user_id: str) -> str:
+    return f"""
+    Player ID: {user_id}
+    Stored traits: no database traits available yet.
+    Stored memories: no database memories available yet.
     """
-#TEMPORARY
 
-async def generate_response(user_id: str, user_message: str, memory_context: str | None = None):
-    prompt_context = memory_context or mock_player_context(user_id) #TO BE REPLACED (brod)
+async def generate_response(user_id: str, user_message: str, player_context_text: str | None = None):
+    prompt_context = player_context_text or empty_player_context(user_id)
     formatted_prompt = PET_SYSTEM_PROMPT.format(memory_context=prompt_context)
 
     try: 
