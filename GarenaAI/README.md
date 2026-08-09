@@ -2,6 +2,20 @@
 
 This service exposes the existing pet AI over the desktop pet gRPC contract.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    Pet["Desktop Pet (Mimo)"] -- "gRPC :50051\nText / Voice / Subscribe" --> AI["GarenaAI"]
+    Sim["Simulated game data\nsample_death_recap_*.json"] -- "HTTP :8001\nPOST /death-recap" --> AI
+    AI <-- "chat memory + recap vectors" --> DB["PostgreSQL"]
+    AI -- "Responses / STT / embeddings" --> OpenAI["OpenAI APIs"]
+    AI -- "TTS" --> Fish["Fish Audio"]
+    AI -- "pushed feedback\nTextPayload / AudioPayload" --> Pet
+```
+
+The desktop pet stays conversation-only. Simulated game data is posted separately to the HTTP death-recap endpoint, and GarenaAI pushes the generated feedback back to Mimo through the existing gRPC receive stream.
+
 ## Run gRPC For Desktop Pet
 
 ```bash
@@ -89,7 +103,7 @@ Fish TTS accepts up to 500 characters per request. GarenaAI normalizes and clamp
 
 Voice selection is pinned with `FISH_TTS_REFERENCE_ID`. `FISH_TTS_BACKEND` chooses the Fish generation model, while `FISH_TTS_REFERENCE_ID` chooses the speaker voice. The demo config uses a public Fish voice ID so the desktop pet does not change voices between runs; replace it with another Fish voice/model ID if you want a different Mimo voice.
 
-For voice messages, `SendVoice` streams a transcript response as soon as STT finishes, then streams the final text/audio reply after AI generation. Text messages still use a single `SendText` response. The desktop client allows up to 25 seconds for each gRPC request.
+For voice messages, `SendVoice` streams a transcript response as soon as STT finishes, then streams the final text/audio reply after AI generation. Text messages still use a single `SendText` response. The desktop client's unary gRPC timeout is set in `DesktopPet/CMakeLists.txt` with `set(GARENA_PET_GRPC_TIMEOUT_SECONDS 120)`.
 
 ## Death Recap Feedback
 

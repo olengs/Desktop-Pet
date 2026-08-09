@@ -27,7 +27,11 @@ using garena::pet::v1::SubscribeRequest;
 using garena::pet::v1::TextRequest;
 using garena::pet::v1::VoiceRequest;
 
-constexpr int UnaryDeadlineSeconds = 25;
+#ifndef GARENA_PET_GRPC_TIMEOUT_SECONDS
+#define GARENA_PET_GRPC_TIMEOUT_SECONDS 120
+#endif
+
+constexpr int UnaryDeadlineSeconds = GARENA_PET_GRPC_TIMEOUT_SECONDS;
 
 std::string toStdString(const QString &value)
 {

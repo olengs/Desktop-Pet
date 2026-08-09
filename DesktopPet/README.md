@@ -64,7 +64,8 @@ Install Qt 6 through the Qt installer or Homebrew. With Homebrew:
 
 ```bash
 brew install qt cmake ninja
-cmake -S . -B build -G Ninja -DQt6_DIR="$(brew --prefix qt)/lib/cmake/Qt6"
+cmake -S . -B build -G Ninja \
+  -DQt6_DIR="$(brew --prefix qt)/lib/cmake/Qt6"
 cmake --build build
 ./bin/GarenaPet
 ```
@@ -72,7 +73,8 @@ cmake --build build
 If you installed Qt through the Qt installer, point `Qt6_DIR` at your Qt kit's Qt6 CMake package, for example:
 
 ```bash
-cmake -S . -B build -G Ninja -DQt6_DIR="$HOME/Qt/6.7.2/macos/lib/cmake/Qt6"
+cmake -S . -B build -G Ninja \
+  -DQt6_DIR="$HOME/Qt/6.7.2/macos/lib/cmake/Qt6"
 cmake --build build
 ./bin/GarenaPet
 ```
@@ -97,12 +99,18 @@ The desktop pet defaults to:
 127.0.0.1:50051
 ```
 
-Override it with `GARENA_PET_GRPC_TARGET`.
+Override the target with `GARENA_PET_GRPC_TARGET`.
 
 macOS/Linux:
 
 ```bash
 GARENA_PET_GRPC_TARGET=127.0.0.1:50051 ./bin/GarenaPet
+```
+
+The desktop client waits up to the unary gRPC timeout set in `DesktopPet/CMakeLists.txt`. The project currently sets it to 120 seconds, which gives slower Fish TTS responses time to finish. To change it, edit this line in `CMakeLists.txt`, then rerun CMake and rebuild:
+
+```cmake
+set(GARENA_PET_GRPC_TIMEOUT_SECONDS 120)
 ```
 
 Windows PowerShell:
@@ -112,7 +120,7 @@ $env:GARENA_PET_GRPC_TARGET="127.0.0.1:50051"
 .\bin\GarenaPet.exe
 ```
 
-See [../docs/garena-ai-desktop-pet-handoff.md](../docs/garena-ai-desktop-pet-handoff.md) for the Python gRPC integration and full team handoff.
+See [../README.md](../README.md) for the overall architecture and [../GarenaAI/README.md](../GarenaAI/README.md) for the Python gRPC integration.
 See [What Is Built](#what-is-built) and [Project Layout](#project-layout) for compact mode and sprite component notes.
 
 Use the settings window's Player Login field to choose a unique player ID before chatting. GarenaAI stores conversation memory by that `player_id`, and the desktop app remembers the selected ID locally between launches.
