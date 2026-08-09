@@ -87,6 +87,8 @@ TTS also requires `FISH_AUDIO_API_KEY`.
 
 Fish TTS accepts up to 500 characters per request. GarenaAI normalizes and clamps the spoken text before calling Fish, while the desktop pet displays the regular text reply and plays the returned audio payload.
 
+Voice selection is pinned with `FISH_TTS_REFERENCE_ID`. `FISH_TTS_BACKEND` chooses the Fish generation model, while `FISH_TTS_REFERENCE_ID` chooses the speaker voice. The demo config uses a public Fish voice ID so the desktop pet does not change voices between runs; replace it with another Fish voice/model ID if you want a different Mimo voice.
+
 For voice messages, `SendVoice` streams a transcript response as soon as STT finishes, then streams the final text/audio reply after AI generation. Text messages still use a single `SendText` response. The desktop client allows up to 25 seconds for each gRPC request.
 
 ## Death Recap Feedback
