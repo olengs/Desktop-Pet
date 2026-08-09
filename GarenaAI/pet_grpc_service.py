@@ -15,12 +15,14 @@ from dataclasses import dataclass
 import grpc
 
 try:
+    from config import config_bool, config_float, config_value
     from ai_engine import client, generate_response
     from audio_services import speech_to_text, text_to_speech
     from generated import garena_pet_pb2 as pb
     from generated import garena_pet_pb2_grpc as rpc
     from pet_context import format_player_context, mood_from_traits
 except ImportError:  # Allows `python -m GarenaAI.main` from repo root.
+    from GarenaAI.config import config_bool, config_float, config_value
     from GarenaAI.ai_engine import client, generate_response
     from GarenaAI.audio_services import speech_to_text, text_to_speech
     from GarenaAI.generated import garena_pet_pb2 as pb
@@ -32,15 +34,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_PLAYER_ID = "demo-player"
 DEFAULT_WAV_DIR = Path(__file__).resolve().parent.parent / "test"
 STT_SAMPLE_RATE = 16000
-TRUTHY = {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
 class GrpcServiceConfig:
-    enable_tts: bool = os.getenv("GARENA_PET_GRPC_TTS", "").lower() in TRUTHY
-    save_wav: bool = os.getenv("GARENA_PET_SAVE_WAV", "").lower() in TRUTHY
-    wav_dir: Path = Path(os.getenv("GARENA_PET_WAV_DIR", DEFAULT_WAV_DIR))
-    stream_heartbeat_seconds: float = float(os.getenv("GARENA_PET_GRPC_HEARTBEAT_SECONDS", "30"))
+    enable_tts: bool = config_bool("GARENA_PET_GRPC_TTS", False)
+    save_wav: bool = config_bool("GARENA_PET_SAVE_WAV", False)
+    wav_dir: Path = Path(config_value("GARENA_PET_WAV_DIR", "") or DEFAULT_WAV_DIR)
+    stream_heartbeat_seconds: float = config_float("GARENA_PET_GRPC_HEARTBEAT_SECONDS", 30)
 
 
 class PlayerMessageHub:
@@ -350,4 +351,3 @@ def _text_server_message(text: str, mood: str) -> pb.PetServerMessage:
         created_at_unix_ms=int(time.time() * 1000),
         text=pb.TextPayload(text=text),
     )
-

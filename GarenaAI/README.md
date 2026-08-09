@@ -28,11 +28,22 @@ The desktop pet defaults to the same target. To override the pet target:
 GARENA_PET_GRPC_TARGET=127.0.0.1:50051 ./DesktopPet/bin/GarenaPet
 ```
 
+## Settings Files
+
+Use `.env` only for secrets:
+
+```text
+OPENAI_API_KEY=...
+FISH_AUDIO_API_KEY=...
+```
+
+Use `.config` for non-secret runtime settings such as OpenAI model choices, response token budget, Fish TTS format, and local debug toggles.
+
 ## Optional Audio Replies
 
 Text replies work without TTS. To include `AudioPayload` responses for desktop playback, set:
 
-```bash
+```text
 GARENA_PET_GRPC_TTS=1
 ```
 
@@ -42,7 +53,7 @@ TTS also requires `FISH_AUDIO_API_KEY`.
 
 To save every WAV clip received from the desktop pet's `SendVoice` call into the repo root `test/` folder, set:
 
-```bash
+```text
 GARENA_PET_SAVE_WAV=1
 ```
 

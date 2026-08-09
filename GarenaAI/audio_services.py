@@ -1,15 +1,17 @@
 import os
-from pathlib import Path
 
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from fish_audio_sdk import Session, TTSRequest
 
-load_dotenv(Path(__file__).with_name(".env"))
+try:
+    from config import ENV_PATH, config_int, config_value
+except ImportError:
+    from GarenaAI.config import ENV_PATH, config_int, config_value
+
+load_dotenv(ENV_PATH)
 FISH_CLIENT = os.getenv("FISH_AUDIO_API_KEY")
 session = Session(FISH_CLIENT) if FISH_CLIENT else None 
-FISH_TTS_SAMPLE_RATE = 44100
-FISH_TTS_MP3_BITRATE = 128
 
 async def speech_to_text(client: AsyncOpenAI, audio_bytes: bytes, filename: str = 'input.wav'):
     """converts user audio into text"""
@@ -17,7 +19,7 @@ async def speech_to_text(client: AsyncOpenAI, audio_bytes: bytes, filename: str 
         return ""
     
     transcription = await client.audio.transcriptions.create(
-        model = "gpt-transcribe",
+        model = config_value("OPENAI_TRANSCRIBE_MODEL", "gpt-transcribe"),
         file = (filename, audio_bytes, "audio/wav")
     )
 
@@ -30,10 +32,10 @@ def text_to_speech(text: str):
 
     request = TTSRequest(
         text = text,
-        model = "s2.1-pro",
-        format = "mp3",
-        sample_rate = FISH_TTS_SAMPLE_RATE,
-        mp3_bitrate = FISH_TTS_MP3_BITRATE
+        model = config_value("FISH_TTS_MODEL", "s2.1-pro"),
+        format = config_value("FISH_TTS_FORMAT", "mp3"),
+        sample_rate = config_int("FISH_TTS_SAMPLE_RATE", 44100),
+        mp3_bitrate = config_int("FISH_TTS_MP3_BITRATE", 128)
     )
 
     audio_bytes = b""
