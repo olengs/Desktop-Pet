@@ -138,6 +138,6 @@ service GarenaPetService {
 3. Click the chat icon and ask: `How are you?`
 4. Hold `Hold` to send a push-to-talk voice note.
 5. Click the settings icon to switch between `Push` and `Listen`, tune voice sensitivity, or click `Pull` for pending backend messages.
-6. Click `Stream` to connect the gRPC receive stream.
+6. Confirm the gRPC receive stream is connected; it auto-connects on launch, and the `Stream` button can reconnect it if needed.
 7. Close chat/settings and confirm Mimo stays on the desktop.
 8. Leave Mimo alone to see the sleep pose, or drag while asleep to briefly annoy Mimo.
