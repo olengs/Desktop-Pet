@@ -11,7 +11,9 @@ except ImportError:
 
 load_dotenv(ENV_PATH)
 FISH_CLIENT = os.getenv("FISH_AUDIO_API_KEY")
-session = Session(FISH_CLIENT) if FISH_CLIENT else None 
+session = Session(FISH_CLIENT) if FISH_CLIENT else None
+
+FISH_TTS_API_CHARACTER_LIMIT = 500
 
 async def speech_to_text(client: AsyncOpenAI, audio_bytes: bytes, filename: str = 'input.wav'):
     """converts user audio into text"""
@@ -25,13 +27,35 @@ async def speech_to_text(client: AsyncOpenAI, audio_bytes: bytes, filename: str 
 
     return (transcription.text or "").strip()
 
+def clamp_tts_text(text: str) -> str:
+    """Return text that is safe for Fish TTS' character limit."""
+    normalized = " ".join((text or "").split())
+    if len(normalized) <= FISH_TTS_API_CHARACTER_LIMIT:
+        return normalized
+
+    clipped = normalized[:FISH_TTS_API_CHARACTER_LIMIT].rstrip()
+    boundary = max(clipped.rfind("."), clipped.rfind("!"), clipped.rfind("?"))
+    if boundary >= int(FISH_TTS_API_CHARACTER_LIMIT * 0.6):
+        return clipped[: boundary + 1].strip()
+
+    word_boundary = clipped.rfind(" ")
+    if word_boundary >= int(FISH_TTS_API_CHARACTER_LIMIT * 0.8):
+        return clipped[:word_boundary].strip()
+
+    return clipped
+
+
 def text_to_speech(text: str):
     """converts text into audio"""
     if session is None:
         return b""
 
+    tts_text = clamp_tts_text(text)
+    if not tts_text:
+        return b""
+
     request = TTSRequest(
-        text = text,
+        text = tts_text,
         format = config_value("FISH_TTS_FORMAT", "mp3"),
         sample_rate = config_int("FISH_TTS_SAMPLE_RATE", 44100),
         mp3_bitrate = config_int("FISH_TTS_MP3_BITRATE", 128),

@@ -77,7 +77,7 @@ GARENA_MEMORY_MAX_CONTEXT_CHARS=6000
 
 ## Optional Audio Replies
 
-Text replies work without TTS. To include `AudioPayload` responses for desktop playback, set this in `.config`:
+Text replies work without TTS, but the demo config currently includes `AudioPayload` responses for desktop playback:
 
 ```text
 GARENA_PET_GRPC_TTS=1
@@ -85,7 +85,7 @@ GARENA_PET_GRPC_TTS=1
 
 TTS also requires `FISH_AUDIO_API_KEY`.
 
-TTS is currently off by default with `GARENA_PET_GRPC_TTS=0`, so the desktop pet receives text replies without waiting for speech synthesis.
+Fish TTS accepts up to 500 characters per request. GarenaAI normalizes and clamps the spoken text before calling Fish, while the desktop pet displays the regular text reply and plays the returned audio payload.
 
 For voice messages, `SendVoice` streams a transcript response as soon as STT finishes, then streams the final text/audio reply after AI generation. Text messages still use a single `SendText` response. The desktop client allows up to 25 seconds for each gRPC request.
 

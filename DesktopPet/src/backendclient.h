@@ -74,7 +74,7 @@ private:
         const QByteArray &audio,
         const QString &audioMimeType);
     void playAudioReply(const QByteArray &audio, const QString &audioMimeType);
-    QUrl audioSourceHint(const QString &audioMimeType) const;
+    QUrl audioSourceHint(const QString &audioMimeType, quint64 serial) const;
 
     PetGrpcClient m_grpc;
     QString m_backendTarget = QStringLiteral("127.0.0.1:50051");
@@ -87,4 +87,5 @@ private:
     QBuffer m_replyAudioBuffer;
     QAudioOutput m_replyAudioOutput;
     QMediaPlayer m_replyPlayer;
+    quint64 m_replyAudioSerial = 0;
 };
